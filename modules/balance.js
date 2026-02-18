@@ -12,6 +12,17 @@ export class BalanceModule {
             this.settings.balance = this.getDefaultBalanceData();
         }
         
+        // Initialize sub-accordion state if not exists
+        if (!this.settings.balance.subAccordionState) {
+            this.settings.balance.subAccordionState = {
+                savingsGoals: false,
+                recurringTransactions: false,
+                transactionHistory: false,
+                monthlySummary: false,
+                shopMode: false
+            };
+        }
+        
         // Initialize ID counter from existing data
         this.idCounter = this.getMaxId();
         
@@ -701,22 +712,19 @@ export class BalanceModule {
 
     renderSavingsGoals() {
         const goals = this.settings.balance.goals;
-        
-        if (goals.length === 0) {
-            return `
-                <div class="sstssd-section">
-                    <div class="sstssd-section-title">🎯 저축 목표들</div>
-                    <div class="sstssd-empty">저축 목표가 없습니다</div>
-                    <button class="sstssd-btn sstssd-btn-add" data-action="add-goal">+ 목표 추가</button>
-                </div>
-            `;
-        }
+        const isOpen = this.settings.balance.subAccordionState.savingsGoals;
         
         return `
             <div class="sstssd-section">
-                <div class="sstssd-section-title">🎯 저축 목표들</div>
-                ${goals.map(goal => this.renderGoal(goal)).join('')}
-                <button class="sstssd-btn sstssd-btn-add" data-action="add-goal">+ 목표 추가</button>
+                <div class="sstssd-balance-section-header" data-section="savingsGoals">
+                    <span class="sstssd-section-title">🎯 저축 목표들</span>
+                    <span class="sstssd-balance-section-arrow ${isOpen ? 'open' : ''}">▶</span>
+                </div>
+                <div class="sstssd-balance-section-content ${isOpen ? 'open' : ''}">
+                    ${goals.length === 0 ? '<div class="sstssd-empty">저축 목표가 없습니다</div>' : ''}
+                    ${goals.map(goal => this.renderGoal(goal)).join('')}
+                    <button class="sstssd-btn sstssd-btn-add" data-action="add-goal">+ 목표 추가</button>
+                </div>
             </div>
         `;
     }
@@ -760,21 +768,27 @@ export class BalanceModule {
     renderRecurringTransactions() {
         const income = this.settings.balance.recurringIncome;
         const expense = this.settings.balance.recurringExpense;
+        const isOpen = this.settings.balance.subAccordionState.recurringTransactions;
         
         return `
             <div class="sstssd-section">
-                <div class="sstssd-section-title">📌 고정 수입/지출</div>
-                <div class="sstssd-subsection">
-                    <div class="sstssd-subsection-title">📥 고정 수입</div>
-                    ${income.length === 0 ? '<div class="sstssd-empty">고정 수입이 없습니다</div>' : ''}
-                    ${income.map(i => this.renderRecurringIncome(i)).join('')}
-                    <button class="sstssd-btn sstssd-btn-sm" data-action="add-recurring-income">+ 수입 추가</button>
+                <div class="sstssd-balance-section-header" data-section="recurringTransactions">
+                    <span class="sstssd-section-title">📌 고정 수입/지출</span>
+                    <span class="sstssd-balance-section-arrow ${isOpen ? 'open' : ''}">▶</span>
                 </div>
-                <div class="sstssd-subsection">
-                    <div class="sstssd-subsection-title">📤 고정 지출</div>
-                    ${expense.length === 0 ? '<div class="sstssd-empty">고정 지출이 없습니다</div>' : ''}
-                    ${expense.map(e => this.renderRecurringExpense(e)).join('')}
-                    <button class="sstssd-btn sstssd-btn-sm" data-action="add-recurring-expense">+ 지출 추가</button>
+                <div class="sstssd-balance-section-content ${isOpen ? 'open' : ''}">
+                    <div class="sstssd-subsection">
+                        <div class="sstssd-subsection-title">📥 고정 수입</div>
+                        ${income.length === 0 ? '<div class="sstssd-empty">고정 수입이 없습니다</div>' : ''}
+                        ${income.map(i => this.renderRecurringIncome(i)).join('')}
+                        <button class="sstssd-btn sstssd-btn-sm" data-action="add-recurring-income">+ 수입 추가</button>
+                    </div>
+                    <div class="sstssd-subsection">
+                        <div class="sstssd-subsection-title">📤 고정 지출</div>
+                        ${expense.length === 0 ? '<div class="sstssd-empty">고정 지출이 없습니다</div>' : ''}
+                        ${expense.map(e => this.renderRecurringExpense(e)).join('')}
+                        <button class="sstssd-btn sstssd-btn-sm" data-action="add-recurring-expense">+ 지출 추가</button>
+                    </div>
                 </div>
             </div>
         `;
@@ -824,25 +838,31 @@ export class BalanceModule {
         const transactions = this.settings.balance.transactions.slice(0, 5);
         const hasMore = this.settings.balance.transactions.length > 5;
         const shopEnabled = this.settings.balance.shopMode.enabled;
+        const isOpen = this.settings.balance.subAccordionState.transactionHistory;
         
         return `
             <div class="sstssd-section">
-                <div class="sstssd-section-header">
-                    <div class="sstssd-section-title">📋 거래 내역</div>
-                    ${hasMore ? '<button class="sstssd-btn sstssd-btn-xs" data-action="show-all-transactions">전체</button>' : ''}
+                <div class="sstssd-balance-section-header" data-section="transactionHistory">
+                    <span class="sstssd-section-title">📋 거래 내역</span>
+                    <span class="sstssd-balance-section-arrow ${isOpen ? 'open' : ''}">▶</span>
                 </div>
-                ${shopEnabled ? `
-                <div class="sstssd-transaction-filters">
-                    <button class="sstssd-btn sstssd-btn-xs sstssd-filter-active" data-filter="all">전체</button>
-                    <button class="sstssd-btn sstssd-btn-xs" data-filter="personal">개인</button>
-                    <button class="sstssd-btn sstssd-btn-xs" data-filter="shop">가게</button>
+                <div class="sstssd-balance-section-content ${isOpen ? 'open' : ''}">
+                    <div class="sstssd-section-header">
+                        ${hasMore ? '<button class="sstssd-btn sstssd-btn-xs" data-action="show-all-transactions">전체</button>' : ''}
+                    </div>
+                    ${shopEnabled ? `
+                    <div class="sstssd-transaction-filters">
+                        <button class="sstssd-btn sstssd-btn-xs sstssd-filter-active" data-filter="all">전체</button>
+                        <button class="sstssd-btn sstssd-btn-xs" data-filter="personal">개인</button>
+                        <button class="sstssd-btn sstssd-btn-xs" data-filter="shop">가게</button>
+                    </div>
+                    ` : ''}
+                    <div class="sstssd-transaction-list" id="sstssd-transaction-list">
+                        ${transactions.length === 0 ? '<div class="sstssd-empty">거래 내역이 없습니다</div>' : ''}
+                        ${transactions.map(t => this.renderTransaction(t)).join('')}
+                    </div>
+                    <button class="sstssd-btn sstssd-btn-add" data-action="add-transaction">+ 수동 추가</button>
                 </div>
-                ` : ''}
-                <div class="sstssd-transaction-list" id="sstssd-transaction-list">
-                    ${transactions.length === 0 ? '<div class="sstssd-empty">거래 내역이 없습니다</div>' : ''}
-                    ${transactions.map(t => this.renderTransaction(t)).join('')}
-                </div>
-                <button class="sstssd-btn sstssd-btn-add" data-action="add-transaction">+ 수동 추가</button>
             </div>
         `;
     }
@@ -875,44 +895,50 @@ export class BalanceModule {
         const summary = this.getCurrentMonthSummary();
         const categories = Object.entries(summary.categories);
         const maxAmount = Math.max(...Object.values(summary.categories), 1);
+        const isOpen = this.settings.balance.subAccordionState.monthlySummary;
         
         return `
             <div class="sstssd-section">
-                <div class="sstssd-section-title">📊 이번 달 요약</div>
-                <div class="sstssd-summary-stats">
-                    <div class="sstssd-summary-row">
-                        <span>📥 총 수입:</span>
-                        <span class="sstssd-balance-positive">+${this.formatCurrency(summary.totalIncome)}</span>
-                    </div>
-                    <div class="sstssd-summary-row">
-                        <span>📤 총 지출:</span>
-                        <span class="sstssd-balance-negative">-${this.formatCurrency(summary.totalExpense)}</span>
-                    </div>
-                    <div class="sstssd-summary-row">
-                        <span>📈 순수익:</span>
-                        <span class="${summary.netIncome >= 0 ? 'sstssd-balance-positive' : 'sstssd-balance-negative'}">
-                            ${summary.netIncome >= 0 ? '+' : ''}${this.formatCurrency(summary.netIncome)}
-                        </span>
-                    </div>
+                <div class="sstssd-balance-section-header" data-section="monthlySummary">
+                    <span class="sstssd-section-title">📊 이번 달 요약</span>
+                    <span class="sstssd-balance-section-arrow ${isOpen ? 'open' : ''}">▶</span>
                 </div>
-                ${categories.length > 0 ? `
-                <div class="sstssd-summary-categories">
-                    <div class="sstssd-subsection-title">지출 비중:</div>
-                    ${categories.map(([name, amount]) => {
-                        const percentage = Math.round((amount / summary.totalExpense) * 100);
-                        const barWidth = Math.round((amount / maxAmount) * 100);
-                        return `
-                        <div class="sstssd-category-row">
-                            <div class="sstssd-category-label">${this.escapeHtml(name)}</div>
-                            <div class="sstssd-category-bar-container">
-                                <div class="sstssd-category-bar" style="width: ${barWidth}%"></div>
-                            </div>
-                            <div class="sstssd-category-percentage">${percentage}%</div>
+                <div class="sstssd-balance-section-content ${isOpen ? 'open' : ''}">
+                    <div class="sstssd-summary-stats">
+                        <div class="sstssd-summary-row">
+                            <span>📥 총 수입:</span>
+                            <span class="sstssd-balance-positive">+${this.formatCurrency(summary.totalIncome)}</span>
                         </div>
-                        `;
-                    }).join('')}
+                        <div class="sstssd-summary-row">
+                            <span>📤 총 지출:</span>
+                            <span class="sstssd-balance-negative">-${this.formatCurrency(summary.totalExpense)}</span>
+                        </div>
+                        <div class="sstssd-summary-row">
+                            <span>📈 순수익:</span>
+                            <span class="${summary.netIncome >= 0 ? 'sstssd-balance-positive' : 'sstssd-balance-negative'}">
+                                ${summary.netIncome >= 0 ? '+' : ''}${this.formatCurrency(summary.netIncome)}
+                            </span>
+                        </div>
+                    </div>
+                    ${categories.length > 0 ? `
+                    <div class="sstssd-summary-categories">
+                        <div class="sstssd-subsection-title">지출 비중:</div>
+                        ${categories.map(([name, amount]) => {
+                            const percentage = Math.round((amount / summary.totalExpense) * 100);
+                            const barWidth = Math.round((amount / maxAmount) * 100);
+                            return `
+                            <div class="sstssd-category-row">
+                                <div class="sstssd-category-label">${this.escapeHtml(name)}</div>
+                                <div class="sstssd-category-bar-container">
+                                    <div class="sstssd-category-bar" style="width: ${barWidth}%"></div>
+                                </div>
+                                <div class="sstssd-category-percentage">${percentage}%</div>
+                            </div>
+                            `;
+                        }).join('')}
+                    </div>
+                    ` : ''}
                 </div>
-                ` : ''}
             </div>
         `;
     }
@@ -959,46 +985,75 @@ export class BalanceModule {
 
     renderShopModeToggle() {
         const enabled = this.settings.balance.shopMode.enabled;
+        const isOpen = this.settings.balance.subAccordionState.shopMode;
         
         return `
             <div class="sstssd-section">
-                <div class="sstssd-section-title">⚙️ 가게 모드</div>
-                <div class="sstssd-shop-mode-toggle">
-                    <label class="sstssd-toggle">
-                        <input type="checkbox" ${enabled ? 'checked' : ''} data-action="toggle-shop-mode">
-                        <span class="sstssd-toggle-slider"></span>
-                    </label>
-                    <span>${enabled ? 'ON' : 'OFF'}</span>
+                <div class="sstssd-balance-section-header" data-section="shopMode">
+                    <span class="sstssd-section-title">⚙️ 가게 모드</span>
+                    <span class="sstssd-balance-section-arrow ${isOpen ? 'open' : ''}">▶</span>
                 </div>
-                ${enabled ? `
-                <div class="sstssd-shop-settings">
-                    <div class="sstssd-form-group">
-                        <label>가게 이름:</label>
-                        <input type="text" class="sstssd-input sstssd-input-sm" 
-                               value="${this.escapeHtml(this.settings.balance.shopMode.shopName)}" 
-                               data-action="update-shop-name">
+                <div class="sstssd-balance-section-content ${isOpen ? 'open' : ''}">
+                    <div class="sstssd-shop-mode-toggle">
+                        <label class="sstssd-toggle">
+                            <input type="checkbox" ${enabled ? 'checked' : ''} data-action="toggle-shop-mode">
+                            <span class="sstssd-toggle-slider"></span>
+                        </label>
+                        <span>${enabled ? 'ON' : 'OFF'}</span>
                     </div>
-                    <div class="sstssd-form-group">
-                        <label>알바비 지급:</label>
-                        <select class="sstssd-input sstssd-input-sm" data-action="update-payroll-mode">
-                            <option value="daily" ${this.settings.balance.shopMode.payrollMode === 'daily' ? 'selected' : ''}>당일</option>
-                            <option value="monthly" ${this.settings.balance.shopMode.payrollMode === 'monthly' ? 'selected' : ''}>월말</option>
-                        </select>
+                    ${enabled ? `
+                    <div class="sstssd-shop-settings">
+                        <div class="sstssd-form-group">
+                            <label>가게 이름:</label>
+                            <input type="text" class="sstssd-input sstssd-input-sm" 
+                                   value="${this.escapeHtml(this.settings.balance.shopMode.shopName)}" 
+                                   data-action="update-shop-name">
+                        </div>
+                        <div class="sstssd-form-group">
+                            <label>알바비 지급:</label>
+                            <select class="sstssd-input sstssd-input-sm" data-action="update-payroll-mode">
+                                <option value="daily" ${this.settings.balance.shopMode.payrollMode === 'daily' ? 'selected' : ''}>당일</option>
+                                <option value="monthly" ${this.settings.balance.shopMode.payrollMode === 'monthly' ? 'selected' : ''}>월말</option>
+                            </select>
+                        </div>
+                        <div class="sstssd-form-group">
+                            <label>운영비 경고 (원):</label>
+                            <input type="number" class="sstssd-input sstssd-input-sm" 
+                                   value="${this.settings.balance.shopMode.warningThreshold}" 
+                                   data-action="update-warning-threshold" step="1">
+                        </div>
                     </div>
-                    <div class="sstssd-form-group">
-                        <label>운영비 경고 (원):</label>
-                        <input type="number" class="sstssd-input sstssd-input-sm" 
-                               value="${this.settings.balance.shopMode.warningThreshold}" 
-                               data-action="update-warning-threshold" step="1">
-                    </div>
+                    ` : ''}
                 </div>
-                ` : ''}
             </div>
         `;
     }
 
     // ===== 이벤트 리스너 =====
     attachEventListeners(container) {
+        // Sub-accordion toggles (event delegation)
+        container.querySelectorAll('.sstssd-balance-section-header').forEach(header => {
+            header.addEventListener('click', (e) => {
+                const section = header.dataset.section;
+                if (!section) return;
+                
+                // Toggle state
+                this.settings.balance.subAccordionState[section] = !this.settings.balance.subAccordionState[section];
+                this.saveCallback();
+                
+                // Toggle UI
+                const content = header.nextElementSibling;
+                const arrow = header.querySelector('.sstssd-balance-section-arrow');
+                
+                if (content && content.classList.contains('sstssd-balance-section-content')) {
+                    content.classList.toggle('open');
+                }
+                if (arrow) {
+                    arrow.classList.toggle('open');
+                }
+            });
+        });
+        
         // 저축 이체
         const toSavingsBtn = container.querySelector('[data-action="to-savings"]');
         if (toSavingsBtn) {
