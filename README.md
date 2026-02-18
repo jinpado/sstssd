@@ -1,6 +1,6 @@
 # Side Dashboard Extension for SillyTavern
 
-A third-party extension for SillyTavern that adds a side dashboard panel with todo and schedule management features.
+A third-party extension for SillyTavern that adds a comprehensive side dashboard panel with todo, schedule, balance, inventory, baking, and shop management features.
 
 ## Features
 
@@ -24,6 +24,42 @@ A third-party extension for SillyTavern that adds a side dashboard panel with to
   - Cancel appointments
   - Edit details
 
+### 💳 Balance Module
+- **Personal Finance Tracking**: Track living expenses and income
+- **Savings Goals**: Set and monitor multiple savings targets
+- **Recurring Transactions**: Automatic monthly income/expenses
+- **Shop Mode**: Separate shop operating fund from personal finances
+- **Transaction History**: Detailed record of all financial activities
+
+### 📦 Inventory Module
+- **Ingredient Management**: Track baking ingredients by category
+- **Product Tracking**: Monitor finished products ready for sale
+- **Stock Alerts**: Low stock and out-of-stock warnings
+- **History Tracking**: Record of all inventory changes
+
+### 🧁 Baking Module
+- **Recipe Management**: Create and store baking recipes
+- **Ingredient Tracking**: Automatic inventory deduction when baking
+- **Product Registration**: Add finished products to inventory
+- **Batch Tracking**: Record quantity and yield for each bake
+
+### 🏪 Shop Module (NEW)
+- **Shop Status**: Toggle between open/closed with visual indicators
+- **Menu Management**: Create and manage shop menu with pricing and profit margins
+- **Sales Tracking**: 
+  - Automatic sale recording via `<SALE>` tags
+  - Daily sales summary with breakdown
+  - Monthly revenue reports
+- **Sale Inventory**: Track products available for sale with low-stock alerts
+- **Staff Management**:
+  - Register part-time staff with hourly wages
+  - Skill tracking for roleplay (화술, 포장, etc.)
+  - Shift scheduling
+  - Payroll management (daily or monthly payment modes)
+- **Daily Settlement**: End-of-day summary when closing shop
+- **Monthly Reports**: Revenue, costs, and top-selling items
+- **Integration**: Automatic balance updates and inventory deduction on sales
+
 ## Design
 
 ### Dark Theme
@@ -33,6 +69,10 @@ A third-party extension for SillyTavern that adds a side dashboard panel with to
 - Accent colors:
   - Todo: `#60a5fa` (sky blue)
   - Schedule: `#c084fc` (light purple)
+  - Balance: `#a78bfa` (purple)
+  - Inventory: `#10b981` (green)
+  - Baking: `#ec4899` (pink)
+  - Shop: `#fb923c` (orange)
 
 ### Responsive Layout
 - **Desktop (>768px)**: 400px side panel
@@ -61,7 +101,11 @@ sstssd/
 ├── style.css             # Styles (dark theme + responsive)
 ├── modules/
 │   ├── todo.js          # Todo module
-│   └── schedule.js      # Schedule module
+│   ├── schedule.js      # Schedule module
+│   ├── balance.js       # Balance/finance module
+│   ├── inventory.js     # Inventory management module
+│   ├── baking.js        # Baking/recipe module
+│   └── shop.js          # Shop management module (NEW)
 └── README.md            # This file
 ```
 
@@ -71,20 +115,73 @@ All data is stored in SillyTavern's `extension_settings` using the key `sstssd`:
 
 ```javascript
 {
-  todo: {
-    items: [...]  // Array of todo items
+  chats: {
+    [chatId]: {
+      rpDate: null,          // Roleplay date (null = use real time)
+      rpDateSource: null,    // "auto" | "manual"
+      todo: { items: [...] },
+      schedule: {
+        mode: 'semester' | 'vacation',
+        timetable: { ... },
+        appointments: [...]
+      },
+      balance: {
+        living: 50000000,    // Personal funds
+        goals: [...],        // Savings goals
+        transactions: [...], // Transaction history
+        shopMode: {
+          enabled: false,
+          shopName: "가게",
+          operatingFund: 0,  // Shop funds (separate from personal)
+          payrollMode: "monthly" | "daily",
+          // ... more shop settings
+        }
+      },
+      inventory: {
+        items: [...],        // Ingredients and products
+        history: [...]       // Inventory changes
+      },
+      baking: {
+        recipes: [...]       // Baking recipes
+      },
+      shop: {
+        isOpen: false,       // Shop status
+        menu: [...],         // Menu items
+        sales: [...],        // Sales records
+        staff: [...],        // Staff members
+        shifts: [...],       // Work shifts
+        monthlyReports: [...] // Financial reports
+      }
+    }
   },
-  schedule: {
-    mode: 'semester' | 'vacation',
-    timetable: { ... },      // Weekly class schedule
-    appointments: [...]       // Array of appointments
-  },
-  panelOpen: true,           // Panel visibility state
-  openModules: [...]         // Currently expanded modules
+  globalSettings: {
+    panelOpen: true,
+    openModules: ['todo', 'schedule', 'balance', 'inventory', 'baking', 'shop']
+  }
 }
 ```
 
 Changes are automatically saved using SillyTavern's `saveSettingsDebounced()` function.
+
+## Tag-Based Integration
+
+The extension supports automatic data extraction from AI chat messages using XML-style tags:
+
+### Implemented Tags:
+- **`<DATE>YYYY-MM-DD</DATE>`**: Auto-detect and update roleplay date
+- **`<FIN_IN>description|amount</FIN_IN>`**: Auto-record income transactions
+- **`<FIN_OUT>description|amount</FIN_OUT>`**: Auto-record expense transactions
+- **`<SALE>menuName|quantity|unitPrice</SALE>`**: Auto-record shop sales (NEW)
+
+### Example Usage:
+```
+AI: "You sold 3 strawberry macarons today! <SALE>딸기 마카롱|3|3500</SALE>"
+Result: 
+- +10,500원 added to shop operating fund
+- Inventory decreased by 3 units
+- Sale recorded in daily summary
+- Toast notification shown
+```
 
 ## CSS Classes
 
@@ -92,18 +189,23 @@ All CSS classes use the `.sstssd-` prefix to avoid conflicts with SillyTavern's 
 
 ## Future Features
 
-- Tag parsing from chat (e.g., `<TASKS>`, `<TIMELINE>`, `<FIN_IN>`, `<FIN_OUT>`)
+- Additional tag parsing (e.g., `<TASKS>`, `<TIMELINE>`)
 - Auto-import tasks and schedules from chat messages
 - Reminders and notifications
 - Export/import functionality
 - Calendar view for appointments
+- Advanced analytics and charts for shop data
+- Multi-currency support
+- Staff performance tracking
 
 ## Technical Details
 
-- **MutationObserver**: Monitors chat for future tag-based data extraction
-- **Module Pattern**: Separate modules for todo and schedule with clean interfaces
+- **MutationObserver**: Monitors chat for tag-based data extraction
+- **Module Pattern**: Separate modules with clean interfaces and dependency injection
 - **Event Delegation**: Efficient event handling for dynamic content
 - **Error Handling**: Try-catch blocks to prevent UI breakage
+- **Chat Isolation**: Data is separated by chat ID for multi-character support
+- **Debounced Saves**: Prevents excessive writes to extension settings
 
 ## Browser Compatibility
 
