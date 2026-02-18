@@ -1,0 +1,748 @@
+// 📱 인스타그램 모듈 (Instagram Module)
+export class InstagramModule {
+    constructor(settings, saveCallback, getGlobalSettings, getRpDate, balanceModule, todoModule) {
+        this.settings = settings;
+        this.saveCallback = saveCallback;
+        this.getGlobalSettings = getGlobalSettings;
+        this.getRpDate = getRpDate;
+        this.balanceModule = balanceModule;
+        this.todoModule = todoModule;
+        this.moduleName = 'instagram';
+        this.idCounter = Date.now();
+        
+        // Initialize instagram data structure if not exists
+        if (!this.settings.instagram) {
+            this.settings.instagram = {
+                username: "sia_bakes",
+                bio: "디저트 만드는 제과학과생 🧁",
+                followers: 12340,
+                followerChange: 0,  // This month's change
+                lastPostDate: null,
+                posts: [],
+                dms: [],
+                incomeRanges: [
+                    { maxFollowers: 5000, min: 1000000, max: 3000000 },
+                    { maxFollowers: 15000, min: 3000000, max: 8000000 },
+                    { maxFollowers: 30000, min: 6000000, max: 12000000 },
+                    { maxFollowers: Infinity, min: 10000000, max: 20000000 }
+                ],
+                subAccordionState: {
+                    accountStats: false,
+                    posts: false,
+                    dms: false
+                }
+            };
+        }
+        
+        // Initialize ID counter from existing data
+        this.idCounter = this.getMaxId();
+        
+        // Process expired DMs
+        this.processExpiredDMs();
+        
+        // Process follower decay if no posts for 7+ days
+        this.processFollowerDecay();
+    }
+    
+    // Get maximum ID from existing data
+    getMaxId() {
+        let maxId = Date.now();
+        
+        if (this.settings.instagram) {
+            const allIds = [
+                ...this.settings.instagram.posts.map(p => p.id || 0),
+                ...this.settings.instagram.dms.map(d => d.id || 0)
+            ];
+            
+            if (allIds.length > 0) {
+                maxId = Math.max(maxId, ...allIds);
+            }
+        }
+        
+        return maxId;
+    }
+    
+    // ===== 게시물 관리 =====
+    // 게시물 추가
+    addPost(data) {
+        const currentDate = this.formatDate(this.getRpDate());
+        const followers = this.settings.instagram.followers;
+        const reaction = this.generateReaction(followers, data.type);
+        
+        const newPost = {
+            id: ++this.idCounter,
+            date: currentDate,
+            type: data.type || "photo",  // "photo" | "reel" | "story"
+            content: data.content,
+            tags: data.tags || [],
+            likes: reaction.likes,
+            comments: reaction.comments,
+            shares: reaction.shares,
+            reaction: reaction.reaction,  // "hot2" | "hot" | "normal" | "low"
+            linkedBaking: data.linkedBaking || null,
+            createdAt: currentDate
+        };
+        
+        this.settings.instagram.posts.unshift(newPost);  // Add to beginning
+        this.settings.instagram.lastPostDate = currentDate;
+        
+        // Update followers based on reaction
+        const followerGrowth = this.updateFollowers(reaction.reaction);
+        this.settings.instagram.followerChange += followerGrowth;
+        
+        // Update balance module SNS income
+        this.updateSNSIncome();
+        
+        this.saveCallback();
+        return { post: newPost, followerGrowth };
+    }
+    
+    // 반응 생성 (좋아요, 댓글, 공유)
+    generateReaction(followers, postType) {
+        const baseRate = 0.10;  // 10% base engagement
+        const minRate = 0.08;
+        const maxRate = 0.12;
+        
+        // Type multipliers
+        const typeMultiplier = {
+            photo: 1.0,
+            reel: 1.5,
+            story: 0  // Stories don't have likes
+        };
+        
+        const rate = minRate + Math.random() * (maxRate - minRate);
+        const multiplier = typeMultiplier[postType] || 1.0;
+        const likes = postType === 'story' ? 0 : Math.round(followers * rate * multiplier);
+        const comments = Math.round(likes * (0.01 + Math.random() * 0.02));
+        const shares = Math.round(likes * (0.01 + Math.random() * 0.04));
+        
+        // Determine reaction level
+        const avgLikes = followers * baseRate;
+        let reaction;
+        if (likes > avgLikes * 1.5) reaction = "hot2";      // 🔥🔥 Amazing
+        else if (likes > avgLikes * 1.1) reaction = "hot";   // 🔥 Good
+        else if (likes > avgLikes * 0.7) reaction = "normal"; // Normal
+        else reaction = "low";                                // 📉 Low
+        
+        return { likes, comments, shares, reaction };
+    }
+    
+    // 팔로워 업데이트
+    updateFollowers(postReaction) {
+        const growthRanges = {
+            hot2: { min: 300, max: 800 },
+            hot: { min: 100, max: 300 },
+            normal: { min: 30, max: 100 },
+            low: { min: 0, max: 30 }
+        };
+        
+        const range = growthRanges[postReaction] || growthRanges.normal;
+        const growth = range.min + Math.floor(Math.random() * (range.max - range.min + 1));
+        
+        this.settings.instagram.followers += growth;
+        return growth;
+    }
+    
+    // 팔로워 자연 감소 (7일 이상 게시물 없음)
+    processFollowerDecay() {
+        if (!this.settings.instagram.lastPostDate) return;
+        
+        const today = this.getRpDate();
+        const lastPost = new Date(this.settings.instagram.lastPostDate);
+        const daysSincePost = Math.floor((today - lastPost) / (1000 * 60 * 60 * 24));
+        
+        if (daysSincePost >= 7) {
+            const decay = Math.floor(10 + Math.random() * 41);  // -10 to -50
+            this.settings.instagram.followers = Math.max(0, this.settings.instagram.followers - decay);
+            this.settings.instagram.followerChange -= decay;
+            this.saveCallback();
+        }
+    }
+    
+    // SNS 수입 범위 업데이트 (balance 모듈 연동)
+    updateSNSIncome() {
+        if (!this.balanceModule) return;
+        
+        const followers = this.settings.instagram.followers;
+        const ranges = this.settings.instagram.incomeRanges;
+        
+        // Find applicable range
+        let incomeRange = ranges[ranges.length - 1];  // Default to highest
+        for (const range of ranges) {
+            if (followers <= range.maxFollowers) {
+                incomeRange = range;
+                break;
+            }
+        }
+        
+        // Update balance module's SNS recurring income
+        const balanceData = this.balanceModule.settings.balance;
+        if (balanceData) {
+            let snsIncome = balanceData.recurringIncome.find(i => i.source === 'SNS');
+            if (snsIncome) {
+                snsIncome.minAmount = incomeRange.min;
+                snsIncome.maxAmount = incomeRange.max;
+            } else {
+                // Create SNS income if doesn't exist
+                balanceData.recurringIncome.push({
+                    id: ++this.balanceModule.idCounter,
+                    source: 'SNS',
+                    minAmount: incomeRange.min,
+                    maxAmount: incomeRange.max,
+                    day: 25,  // Monthly on 25th
+                    createdAt: this.formatDate(this.getRpDate())
+                });
+            }
+            this.saveCallback();
+        }
+    }
+    
+    // Get current income range
+    getCurrentIncomeRange() {
+        const followers = this.settings.instagram.followers;
+        const ranges = this.settings.instagram.incomeRanges;
+        
+        for (const range of ranges) {
+            if (followers <= range.maxFollowers) {
+                return range;
+            }
+        }
+        return ranges[ranges.length - 1];
+    }
+    
+    // ===== DM 관리 =====
+    // DM 추가
+    addDM(data) {
+        const newDM = {
+            id: ++this.idCounter,
+            from: data.from,
+            message: data.message,
+            date: this.formatDate(this.getRpDate()),
+            status: "pending",  // "pending" | "accepted" | "declined" | "expired"
+            memo: "",
+            createdAt: this.formatDate(this.getRpDate())
+        };
+        
+        this.settings.instagram.dms.unshift(newDM);
+        this.saveCallback();
+        return newDM;
+    }
+    
+    // DM 상태 업데이트
+    updateDMStatus(id, status, memo = "") {
+        const dm = this.settings.instagram.dms.find(d => d.id === id);
+        if (!dm) return null;
+        
+        dm.status = status;
+        if (memo) dm.memo = memo;
+        
+        // If accepted, add to todo module
+        if (status === "accepted" && this.todoModule) {
+            const todoTitle = `${dm.message.substring(0, 30)}${dm.message.length > 30 ? '...' : ''} (${dm.from})`;
+            this.todoModule.addItem({
+                title: todoTitle,
+                deadline: this.formatDate(new Date(this.getRpDate().getTime() + 7 * 24 * 60 * 60 * 1000)), // +7 days
+                estimatedTime: "",
+                memo: `Instagram DM 주문: ${dm.message}`
+            });
+        }
+        
+        this.saveCallback();
+        return dm;
+    }
+    
+    // DM 삭제
+    deleteDM(id) {
+        const index = this.settings.instagram.dms.findIndex(d => d.id === id);
+        if (index !== -1) {
+            this.settings.instagram.dms.splice(index, 1);
+            this.saveCallback();
+            return true;
+        }
+        return false;
+    }
+    
+    // 만료된 DM 처리 (7일 이상 미응답)
+    processExpiredDMs() {
+        const today = this.getRpDate();
+        let updated = false;
+        
+        this.settings.instagram.dms.forEach(dm => {
+            if (dm.status === "pending") {
+                const dmDate = new Date(dm.date);
+                const daysSince = Math.floor((today - dmDate) / (1000 * 60 * 60 * 24));
+                
+                if (daysSince >= 7) {
+                    dm.status = "expired";
+                    updated = true;
+                }
+            }
+        });
+        
+        if (updated) {
+            this.saveCallback();
+        }
+    }
+    
+    // ===== 통계 =====
+    // 평균 좋아요 수
+    getAverageLikes() {
+        const posts = this.settings.instagram.posts.filter(p => p.type !== 'story');
+        if (posts.length === 0) return 0;
+        
+        const total = posts.reduce((sum, p) => sum + p.likes, 0);
+        return Math.round(total / posts.length);
+    }
+    
+    // Pending DM 수
+    getPendingDMCount() {
+        return this.settings.instagram.dms.filter(d => d.status === 'pending').length;
+    }
+    
+    // ===== UI 렌더링 =====
+    render(container) {
+        const instaData = this.settings.instagram;
+        const contentEl = container.querySelector('.sstssd-module-content');
+        let isOpen = contentEl ? contentEl.classList.contains('sstssd-module-open') : false;
+        
+        if (!contentEl && this.getGlobalSettings) {
+            const globalSettings = this.getGlobalSettings();
+            isOpen = globalSettings.openModules.includes(this.moduleName);
+        }
+        
+        const pendingDMCount = this.getPendingDMCount();
+        
+        container.innerHTML = `
+            <div class="sstssd-module-header" data-module="${this.moduleName}">
+                <div class="sstssd-module-title">
+                    <span class="sstssd-module-icon">📱</span>
+                    <span class="sstssd-insta-header">Instagram</span>
+                    ${pendingDMCount > 0 ? `<span class="sstssd-badge sstssd-badge-warning">${pendingDMCount}📬</span>` : ''}
+                </div>
+                <button class="sstssd-module-toggle">${isOpen ? '▲' : '▼'}</button>
+            </div>
+            <div class="sstssd-module-content ${isOpen ? 'sstssd-module-open' : ''}" data-module="${this.moduleName}">
+                <div class="sstssd-insta-profile">
+                    <div class="sstssd-insta-username">👤 @${this.escapeHtml(instaData.username)}</div>
+                    <div class="sstssd-insta-followers">팔로워 ${instaData.followers.toLocaleString('ko-KR')}</div>
+                    <div class="sstssd-insta-bio">📝 ${this.escapeHtml(instaData.bio)}</div>
+                </div>
+                
+                ${this.renderAccountStats()}
+                ${this.renderPosts()}
+                ${this.renderDMs()}
+            </div>
+        `;
+        
+        this.attachEventListeners(container);
+        
+        if (typeof window.sstsdUpdateSummary === 'function') {
+            window.sstsdUpdateSummary();
+        }
+    }
+    
+    // 계정 현황 섹션
+    renderAccountStats() {
+        const instaData = this.settings.instagram;
+        const isOpen = instaData.subAccordionState?.accountStats || false;
+        const avgLikes = this.getAverageLikes();
+        const incomeRange = this.getCurrentIncomeRange();
+        
+        return `
+            <div class="sstssd-sub-section">
+                <div class="sstssd-sub-header" data-sub="accountStats">
+                    <span>📊 계정 현황</span>
+                    <button class="sstssd-sub-toggle">${isOpen ? '▲' : '▼'}</button>
+                </div>
+                <div class="sstssd-sub-content ${isOpen ? 'sstssd-sub-open' : ''}">
+                    <div class="sstssd-insta-stats">
+                        <div class="sstssd-stat-item">
+                            <span class="sstssd-stat-label">팔로워</span>
+                            <span class="sstssd-stat-value">${instaData.followers.toLocaleString('ko-KR')} ${instaData.followerChange > 0 ? `(+${instaData.followerChange} 이번달)` : instaData.followerChange < 0 ? `(${instaData.followerChange} 이번달)` : ''}</span>
+                        </div>
+                        <div class="sstssd-stat-item">
+                            <span class="sstssd-stat-label">게시물</span>
+                            <span class="sstssd-stat-value">${instaData.posts.length}개</span>
+                        </div>
+                        <div class="sstssd-stat-item">
+                            <span class="sstssd-stat-label">평균 좋아요</span>
+                            <span class="sstssd-stat-value">${avgLikes.toLocaleString('ko-KR')}</span>
+                        </div>
+                        <div class="sstssd-stat-item">
+                            <span class="sstssd-stat-label">SNS 수입 범위</span>
+                            <span class="sstssd-stat-value">${incomeRange.min.toLocaleString('ko-KR')}~${incomeRange.max.toLocaleString('ko-KR')}원</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+    
+    // 게시물 섹션
+    renderPosts() {
+        const instaData = this.settings.instagram;
+        const isOpen = instaData.subAccordionState?.posts || false;
+        const recentPosts = instaData.posts.slice(0, 10);  // Show 10 most recent
+        
+        return `
+            <div class="sstssd-sub-section">
+                <div class="sstssd-sub-header" data-sub="posts">
+                    <span>📸 최근 게시물</span>
+                    <button class="sstssd-sub-toggle">${isOpen ? '▲' : '▼'}</button>
+                </div>
+                <div class="sstssd-sub-content ${isOpen ? 'sstssd-sub-open' : ''}">
+                    ${recentPosts.length > 0 ? recentPosts.map(post => this.renderPostItem(post)).join('') : '<div class="sstssd-empty">게시물이 없습니다</div>'}
+                    <button class="sstssd-btn sstssd-btn-add" data-action="add-post">+ 게시물 추가</button>
+                </div>
+            </div>
+        `;
+    }
+    
+    // 게시물 항목
+    renderPostItem(post) {
+        const reactionIcon = {
+            hot2: '🔥🔥',
+            hot: '🔥',
+            normal: '보통',
+            low: '📉'
+        };
+        
+        const reactionText = {
+            hot2: '대박',
+            hot: '평균 이상',
+            normal: '보통',
+            low: '저조'
+        };
+        
+        const typeIcon = {
+            photo: '📷',
+            reel: '🎬',
+            story: '📖'
+        };
+        
+        return `
+            <div class="sstssd-insta-post">
+                <div class="sstssd-post-header">
+                    <span class="sstssd-post-date">${post.date}</span>
+                    <span class="sstssd-post-type">${typeIcon[post.type] || '📷'}</span>
+                </div>
+                <div class="sstssd-post-content">${this.escapeHtml(post.content)}</div>
+                ${post.tags.length > 0 ? `<div class="sstssd-post-tags">${post.tags.map(tag => `<span class="sstssd-tag">#${this.escapeHtml(tag)}</span>`).join(' ')}</div>` : ''}
+                ${post.type !== 'story' ? `
+                    <div class="sstssd-post-stats">
+                        <span>❤️ ${post.likes.toLocaleString('ko-KR')}</span>
+                        <span>💬 ${post.comments.toLocaleString('ko-KR')}</span>
+                        <span>📤 ${post.shares.toLocaleString('ko-KR')}</span>
+                    </div>
+                ` : ''}
+                <div class="sstssd-post-reaction sstssd-reaction-${post.reaction}">
+                    └ 반응: ${reactionIcon[post.reaction]} ${reactionText[post.reaction]}
+                </div>
+                ${post.linkedBaking ? `<div class="sstssd-post-link">🧁 연결: ${this.escapeHtml(post.linkedBaking)}</div>` : ''}
+            </div>
+        `;
+    }
+    
+    // DM 섹션
+    renderDMs() {
+        const instaData = this.settings.instagram;
+        const isOpen = instaData.subAccordionState?.dms || false;
+        const dms = instaData.dms.slice(0, 20);  // Show 20 most recent
+        
+        return `
+            <div class="sstssd-sub-section">
+                <div class="sstssd-sub-header" data-sub="dms">
+                    <span>📬 DM 주문</span>
+                    <button class="sstssd-sub-toggle">${isOpen ? '▲' : '▼'}</button>
+                </div>
+                <div class="sstssd-sub-content ${isOpen ? 'sstssd-sub-open' : ''}">
+                    ${dms.length > 0 ? dms.map(dm => this.renderDMItem(dm)).join('') : '<div class="sstssd-empty">DM이 없습니다</div>'}
+                    <button class="sstssd-btn sstssd-btn-add" data-action="add-dm">+ DM 추가</button>
+                </div>
+            </div>
+        `;
+    }
+    
+    // DM 항목
+    renderDMItem(dm) {
+        const statusIcon = {
+            pending: '⬜',
+            accepted: '✅',
+            declined: '❌',
+            expired: '⏰'
+        };
+        
+        const statusText = {
+            pending: '대기중',
+            accepted: '수락됨',
+            declined: '거절됨',
+            expired: '만료됨'
+        };
+        
+        return `
+            <div class="sstssd-insta-dm sstssd-dm-${dm.status}">
+                <div class="sstssd-dm-header">
+                    <span class="sstssd-dm-status">${statusIcon[dm.status]} ${statusText[dm.status]}</span>
+                    <span class="sstssd-dm-from">${this.escapeHtml(dm.from)}</span>
+                    <span class="sstssd-dm-date">(${dm.date})</span>
+                </div>
+                <div class="sstssd-dm-message">"${this.escapeHtml(dm.message)}"</div>
+                ${dm.memo ? `<div class="sstssd-dm-memo">메모: ${this.escapeHtml(dm.memo)}</div>` : ''}
+                ${dm.status === 'pending' ? `
+                    <div class="sstssd-dm-actions">
+                        <button class="sstssd-btn sstssd-btn-sm sstssd-btn-success" data-action="accept-dm" data-id="${dm.id}">수락</button>
+                        <button class="sstssd-btn sstssd-btn-sm sstssd-btn-danger" data-action="decline-dm" data-id="${dm.id}">거절</button>
+                    </div>
+                ` : ''}
+                ${dm.status === 'expired' || dm.status === 'declined' ? `
+                    <button class="sstssd-btn sstssd-btn-sm" data-action="delete-dm" data-id="${dm.id}">삭제</button>
+                ` : ''}
+            </div>
+        `;
+    }
+    
+    // ===== 이벤트 리스너 =====
+    attachEventListeners(container) {
+        // Sub-accordion toggles
+        container.querySelectorAll('.sstssd-sub-header').forEach(header => {
+            header.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const subName = header.dataset.sub;
+                const content = header.nextElementSibling;
+                const toggle = header.querySelector('.sstssd-sub-toggle');
+                
+                if (content && toggle) {
+                    const isOpen = content.classList.toggle('sstssd-sub-open');
+                    toggle.textContent = isOpen ? '▲' : '▼';
+                    
+                    // Save state
+                    if (!this.settings.instagram.subAccordionState) {
+                        this.settings.instagram.subAccordionState = {};
+                    }
+                    this.settings.instagram.subAccordionState[subName] = isOpen;
+                    this.saveCallback();
+                }
+            });
+        });
+        
+        // Add post button
+        const addPostBtn = container.querySelector('[data-action="add-post"]');
+        if (addPostBtn) {
+            addPostBtn.addEventListener('click', () => this.showAddPostModal());
+        }
+        
+        // Add DM button
+        const addDMBtn = container.querySelector('[data-action="add-dm"]');
+        if (addDMBtn) {
+            addDMBtn.addEventListener('click', () => this.showAddDMModal());
+        }
+        
+        // Accept DM buttons
+        container.querySelectorAll('[data-action="accept-dm"]').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const id = parseInt(btn.dataset.id);
+                this.updateDMStatus(id, 'accepted');
+                this.render(container);
+            });
+        });
+        
+        // Decline DM buttons
+        container.querySelectorAll('[data-action="decline-dm"]').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const id = parseInt(btn.dataset.id);
+                this.showDeclineDMModal(id, container);
+            });
+        });
+        
+        // Delete DM buttons
+        container.querySelectorAll('[data-action="delete-dm"]').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const id = parseInt(btn.dataset.id);
+                if (confirm('이 DM을 삭제하시겠습니까?')) {
+                    this.deleteDM(id);
+                    this.render(container);
+                }
+            });
+        });
+    }
+    
+    // ===== 모달 =====
+    // 게시물 추가 모달
+    showAddPostModal(linkedBaking = null) {
+        const modal = document.createElement('div');
+        modal.className = 'sstssd-modal';
+        modal.innerHTML = `
+            <div class="sstssd-modal-overlay"></div>
+            <div class="sstssd-modal-content">
+                <h3>📸 게시물 작성</h3>
+                <form id="sstssd-add-post-form">
+                    <div class="sstssd-form-group">
+                        <label>종류</label>
+                        <div class="sstssd-radio-group">
+                            <label><input type="radio" name="type" value="photo" checked> 📷 사진</label>
+                            <label><input type="radio" name="type" value="reel"> 🎬 릴스</label>
+                            <label><input type="radio" name="type" value="story"> 📖 스토리</label>
+                        </div>
+                    </div>
+                    <div class="sstssd-form-group">
+                        <label>내용</label>
+                        <textarea name="content" class="sstssd-input" rows="3" required placeholder="게시물 내용을 입력하세요"></textarea>
+                    </div>
+                    <div class="sstssd-form-group">
+                        <label>태그 (쉼표로 구분)</label>
+                        <input type="text" name="tags" class="sstssd-input" placeholder="예: 마카롱, 딸기, 신메뉴">
+                    </div>
+                    ${linkedBaking ? `<input type="hidden" name="linkedBaking" value="${this.escapeHtml(linkedBaking)}">` : ''}
+                    <div class="sstssd-form-actions">
+                        <button type="button" class="sstssd-btn sstssd-btn-cancel">취소</button>
+                        <button type="submit" class="sstssd-btn sstssd-btn-primary">게시</button>
+                    </div>
+                </form>
+            </div>
+        `;
+        document.body.appendChild(modal);
+        
+        const form = modal.querySelector('#sstssd-add-post-form');
+        const cancelBtn = modal.querySelector('.sstssd-btn-cancel');
+        const overlay = modal.querySelector('.sstssd-modal-overlay');
+        
+        form.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const formData = new FormData(form);
+            
+            const tagsStr = formData.get('tags');
+            const tags = tagsStr ? tagsStr.split(',').map(t => t.trim()).filter(t => t) : [];
+            
+            const result = this.addPost({
+                type: formData.get('type'),
+                content: formData.get('content'),
+                tags: tags,
+                linkedBaking: formData.get('linkedBaking') || null
+            });
+            
+            // Show result notification
+            if (result.followerGrowth > 0) {
+                alert(`게시물이 업로드되었습니다!\n\n팔로워 +${result.followerGrowth}명 증가 🎉\n반응: ${result.post.reaction === 'hot2' ? '🔥🔥 대박!' : result.post.reaction === 'hot' ? '🔥 좋음' : result.post.reaction === 'normal' ? '보통' : '📉 저조'}`);
+            }
+            
+            const moduleContainer = document.querySelector('.sstssd-module[data-module="instagram"]');
+            if (moduleContainer) {
+                this.render(moduleContainer);
+            }
+            
+            modal.remove();
+        });
+        
+        cancelBtn.addEventListener('click', () => modal.remove());
+        overlay.addEventListener('click', () => modal.remove());
+    }
+    
+    // DM 추가 모달
+    showAddDMModal() {
+        const modal = document.createElement('div');
+        modal.className = 'sstssd-modal';
+        modal.innerHTML = `
+            <div class="sstssd-modal-overlay"></div>
+            <div class="sstssd-modal-content">
+                <h3>📬 DM 추가</h3>
+                <form id="sstssd-add-dm-form">
+                    <div class="sstssd-form-group">
+                        <label>보낸 사람</label>
+                        <input type="text" name="from" class="sstssd-input" required placeholder="예: @sweet_love">
+                    </div>
+                    <div class="sstssd-form-group">
+                        <label>메시지</label>
+                        <textarea name="message" class="sstssd-input" rows="3" required placeholder="주문 내용을 입력하세요"></textarea>
+                    </div>
+                    <div class="sstssd-form-actions">
+                        <button type="button" class="sstssd-btn sstssd-btn-cancel">취소</button>
+                        <button type="submit" class="sstssd-btn sstssd-btn-primary">추가</button>
+                    </div>
+                </form>
+            </div>
+        `;
+        document.body.appendChild(modal);
+        
+        const form = modal.querySelector('#sstssd-add-dm-form');
+        const cancelBtn = modal.querySelector('.sstssd-btn-cancel');
+        const overlay = modal.querySelector('.sstssd-modal-overlay');
+        
+        form.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const formData = new FormData(form);
+            
+            this.addDM({
+                from: formData.get('from'),
+                message: formData.get('message')
+            });
+            
+            const moduleContainer = document.querySelector('.sstssd-module[data-module="instagram"]');
+            if (moduleContainer) {
+                this.render(moduleContainer);
+            }
+            
+            modal.remove();
+        });
+        
+        cancelBtn.addEventListener('click', () => modal.remove());
+        overlay.addEventListener('click', () => modal.remove());
+    }
+    
+    // DM 거절 모달
+    showDeclineDMModal(id, container) {
+        const modal = document.createElement('div');
+        modal.className = 'sstssd-modal';
+        modal.innerHTML = `
+            <div class="sstssd-modal-overlay"></div>
+            <div class="sstssd-modal-content">
+                <h3>DM 거절</h3>
+                <form id="sstssd-decline-dm-form">
+                    <div class="sstssd-form-group">
+                        <label>거절 사유 (선택)</label>
+                        <textarea name="memo" class="sstssd-input" rows="3" placeholder="사유를 입력하세요 (선택)"></textarea>
+                    </div>
+                    <div class="sstssd-form-actions">
+                        <button type="button" class="sstssd-btn sstssd-btn-cancel">취소</button>
+                        <button type="submit" class="sstssd-btn sstssd-btn-primary">거절</button>
+                    </div>
+                </form>
+            </div>
+        `;
+        document.body.appendChild(modal);
+        
+        const form = modal.querySelector('#sstssd-decline-dm-form');
+        const cancelBtn = modal.querySelector('.sstssd-btn-cancel');
+        const overlay = modal.querySelector('.sstssd-modal-overlay');
+        
+        form.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const formData = new FormData(form);
+            
+            this.updateDMStatus(id, 'declined', formData.get('memo'));
+            this.render(container);
+            modal.remove();
+        });
+        
+        cancelBtn.addEventListener('click', () => modal.remove());
+        overlay.addEventListener('click', () => modal.remove());
+    }
+    
+    // ===== 유틸리티 =====
+    formatDate(date) {
+        const d = new Date(date);
+        const year = d.getFullYear();
+        const month = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+    }
+    
+    escapeHtml(text) {
+        if (!text) return '';
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+}
