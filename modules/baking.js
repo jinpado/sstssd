@@ -868,12 +868,14 @@ ingredients:
 - name: "밀가루"
   qty: 500
   unit: "g"
+  estimatedPrice: 4000
 - name: "설탕"
   qty: 200
   unit: "g"
+  estimatedPrice: 2000
 </BAKE_PLAN>
 
-위 형식을 정확히 지켜서 답변해줘. 다른 설명은 필요 없어.`;
+위 형식을 정확히 지켜서 답변해줘. estimatedPrice는 대한민국 온라인 기준 상식적 가격(원)으로 작성해줘. 다른 설명은 필요 없어.`;
             
             const response = await context.generateRaw(prompt, '', false, false);
             
@@ -915,16 +917,21 @@ ingredients:
             // Parse ingredients
             const ingredientsText = content.split('ingredients:')[1];
             if (ingredientsText) {
-                // Updated regex to support decimal quantities
-                const ingMatches = ingredientsText.matchAll(/- name: "(.+?)"\s+qty: (\d+(?:\.\d+)?)\s+unit: "(.+?)"/g);
+                // Updated regex to support decimal quantities and optional estimatedPrice
+                const ingMatches = ingredientsText.matchAll(/- name: "(.+?)"\s+qty: (\d+(?:\.\d+)?)\s+unit: "(.+?)"(?:\s+estimatedPrice: (\d+))?/g);
                 for (const ingMatch of ingMatches) {
                     // Round to 2 decimal places to avoid precision issues
                     const qty = Math.round(parseFloat(ingMatch[2]) * 100) / 100;
-                    ingredients.push({
+                    const ingredient = {
                         name: ingMatch[1],
                         qty: qty,
                         unit: ingMatch[3]
-                    });
+                    };
+                    // Add estimatedPrice if present
+                    if (ingMatch[4]) {
+                        ingredient.estimatedPrice = parseInt(ingMatch[4]);
+                    }
+                    ingredients.push(ingredient);
                 }
             }
             
@@ -948,10 +955,10 @@ ingredients:
                 { name: "마무리", estimatedTime: "15:45~16:00" }
             ],
             ingredients: [
-                { name: "밀가루", qty: Math.round(yieldQty * ratios.FLOUR_PER_UNIT), unit: "g" },
-                { name: "설탕", qty: Math.round(yieldQty * ratios.SUGAR_PER_UNIT), unit: "g" },
-                { name: "버터", qty: Math.round(yieldQty * ratios.BUTTER_PER_UNIT), unit: "g" },
-                { name: "달걀", qty: Math.max(1, Math.round(yieldQty * ratios.EGG_PER_10_UNITS / 10)), unit: "개" }
+                { name: "밀가루", qty: Math.round(yieldQty * ratios.FLOUR_PER_UNIT), unit: "g", estimatedPrice: Math.round(yieldQty * ratios.FLOUR_PER_UNIT * 10) },
+                { name: "설탕", qty: Math.round(yieldQty * ratios.SUGAR_PER_UNIT), unit: "g", estimatedPrice: Math.round(yieldQty * ratios.SUGAR_PER_UNIT * 10) },
+                { name: "버터", qty: Math.round(yieldQty * ratios.BUTTER_PER_UNIT), unit: "g", estimatedPrice: Math.round(yieldQty * ratios.BUTTER_PER_UNIT * 20) },
+                { name: "달걀", qty: Math.max(1, Math.round(yieldQty * ratios.EGG_PER_10_UNITS / 10)), unit: "개", estimatedPrice: Math.max(1, Math.round(yieldQty * ratios.EGG_PER_10_UNITS / 10)) * 300 }
             ]
         };
     }
@@ -1041,12 +1048,17 @@ ingredients:
                 ingredientStatus.forEach(ing => {
                     if (!ing.sufficient) {
                         const needed = ing.qty - ing.available;
+                        // AI가 전체 qty에 대한 estimatedPrice를 줬으므로, 부족분에 비례하여 가격 계산
+                        let price = 0;
+                        if (ing.estimatedPrice && ing.estimatedPrice > 0 && ing.qty > 0) {
+                            price = Math.round((needed / ing.qty) * ing.estimatedPrice);
+                        }
                         this.addToShoppingList(
                             ing.name,
                             needed,
                             ing.unit,
                             "온라인",
-                            0,  // Price will need to be set manually
+                            price,
                             [`${recipeName} ×${yieldQty} 제작용`]
                         );
                     }
