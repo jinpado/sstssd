@@ -65,8 +65,11 @@ export class BakingModule {
             id: ++this.idCounter,
             name: data.name,
             ingredients: data.ingredients || [],  // [{ name: "아몬드가루", qty: 300, unit: "g" }]
+            steps: data.steps || [],  // [{ name: "단계명", estimatedTime: "예상시간", status: "pending" }]
             yieldQty: data.yieldQty || 1,
             yieldUnit: data.yieldUnit || "개",
+            deadline: data.deadline || null,  // 납품일
+            status: data.status || "pending",  // "pending" | "in_progress" | "completed"
             createdAt: this.formatDate(this.getRpDate())
         };
         
@@ -312,9 +315,17 @@ export class BakingModule {
             });
         }
         
-        // 2. 잔고에서 차감 (개인 생활비)
+        // 2. 잔고에서 차감
         if (this.settings.balance) {
-            this.settings.balance.living -= totalPrice;
+            const shopEnabled = this.settings.balance.shopMode?.enabled;
+            
+            if (shopEnabled) {
+                // 가게 모드: 가게 운영비에서 차감
+                this.settings.balance.shopMode.operatingFund -= totalPrice;
+            } else {
+                // 개인 모드: 생활비에서 차감
+                this.settings.balance.living -= totalPrice;
+            }
             
             // 3. 거래 내역 추가
             if (!this.settings.balance.transactions) {
@@ -328,7 +339,7 @@ export class BakingModule {
                 description: `재료 구매 (${location})`,
                 amount: totalPrice,
                 date: this.formatDate(this.getRpDate()),
-                source: "personal"
+                source: shopEnabled ? "shop" : "personal"
             });
         }
         
@@ -439,6 +450,7 @@ export class BakingModule {
                 <div class="sstssd-baking-header">
                     <span class="sstssd-baking-name">${this.escapeHtml(recipe.name)}</span>
                     <span class="sstssd-baking-yield">(${recipe.yieldQty}${recipe.yieldUnit})</span>
+                    ${recipe.deadline ? `<span class="sstssd-baking-deadline">📅 ${recipe.deadline}</span>` : ''}
                 </div>
                 <div class="sstssd-baking-ingredients">
                     ${recipe.ingredients.map(ing => `
@@ -1026,24 +1038,25 @@ ingredients:
         if (addToShoppingBtn) {
             addToShoppingBtn.addEventListener('click', () => {
                 // Add insufficient ingredients to shopping list
-                if (this.inventoryModule) {
-                    ingredientStatus.forEach(ing => {
-                        if (!ing.sufficient) {
-                            const needed = ing.qty - ing.available;
-                            this.inventoryModule.addShoppingItem({
-                                name: ing.name,
-                                qty: needed,
-                                unit: ing.unit
-                            });
-                        }
-                    });
-                    alert('부족한 재료를 구매 리스트에 추가했습니다!');
-                    
-                    // Re-render inventory module
-                    const inventoryContainer = document.querySelector('.sstssd-module[data-module="inventory"]');
-                    if (inventoryContainer && this.inventoryModule) {
-                        this.inventoryModule.render(inventoryContainer);
+                ingredientStatus.forEach(ing => {
+                    if (!ing.sufficient) {
+                        const needed = ing.qty - ing.available;
+                        this.addToShoppingList(
+                            ing.name,
+                            needed,
+                            ing.unit,
+                            "온라인",
+                            0,  // Price will need to be set manually
+                            [`${recipeName} ×${yieldQty} 제작용`]
+                        );
                     }
+                });
+                alert('부족한 재료를 구매 리스트에 추가했습니다!');
+                
+                // Re-render baking module to show updated shopping list
+                const bakingContainer = document.querySelector('.sstssd-module[data-module="baking"]');
+                if (bakingContainer) {
+                    this.render(bakingContainer);
                 }
             });
         }

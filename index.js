@@ -14,9 +14,12 @@ import { InstagramModule } from './modules/instagram.js';
 const MODULE_NAME = 'sstssd';
 
 // Tag detection regex patterns
-const FIN_IN_REGEX = /<FIN_IN>(.+?)\|(\d+)<\/FIN_IN>/g;
-const FIN_OUT_REGEX = /<FIN_OUT>(.+?)\|(\d+)<\/FIN_OUT>/g;
-const SALE_REGEX = /<SALE>(.+?)\|(\d+)\|(\d+)<\/SALE>/g;
+const FIN_IN_REGEX = /<FIN_IN>(.+?)\|(\d+)\s*<\/FIN_IN>/g;
+const FIN_OUT_REGEX = /<FIN_OUT>(.+?)\|(\d+)\s*<\/FIN_OUT>/g;
+const SALE_REGEX = /<SALE>(.+?)\|(\d+)\|(\d+)\s*<\/SALE>/g;
+const GIFT_REGEX = /<GIFT>(.+?)\|(\d+)\|(.+?)\s*<\/GIFT>/g;
+const BAKE_REGEX = /<BAKE>(.+?)\|(\d+)(?:\|(.+?))?\s*<\/BAKE>/g;
+const SHOP_REGEX = /<SHOP>(.+?)\|(\d+)\|(.+?)\|(\d+)(?:\|(.+?))?\s*<\/SHOP>/g;
 
 // Extension state
 let panelElement = null;
@@ -792,6 +795,82 @@ function initObserver() {
                                 }
                             }
                         }
+                        
+                        // Parse GIFT tags (gifting products)
+                        const giftMatches = text.matchAll(GIFT_REGEX);
+                        for (const match of giftMatches) {
+                            const productName = match[1];
+                            const quantity = parseInt(match[2]);
+                            const recipient = match[3];
+                            if (inventoryModule && quantity > 0) {
+                                console.log(`SSTSSD: Auto-detected gift: ${productName} ${quantity}개 → ${recipient}`);
+                                // Find product in inventory
+                                const product = inventoryModule.settings.inventory.items.find(i => 
+                                    i.name === productName && i.type === "product"
+                                );
+                                if (product) {
+                                    inventoryModule.updateItem(product.id, {
+                                        qty: Math.max(0, product.qty - quantity),
+                                        reason: `${recipient}에게 선물`,
+                                        source: "gift"
+                                    });
+                                    renderAllModules();
+                                }
+                            }
+                        }
+                        
+                        // Parse BAKE tags (baking plans from AI)
+                        const bakeMatches = text.matchAll(BAKE_REGEX);
+                        for (const match of bakeMatches) {
+                            const menuName = match[1];
+                            const quantity = parseInt(match[2]);
+                            const deadline = match[3] || null;
+                            if (bakingModule && quantity > 0) {
+                                console.log(`SSTSSD: Auto-detected baking plan: ${menuName} ${quantity}개`);
+                                bakingModule.addRecipe({
+                                    name: menuName,
+                                    yieldQty: quantity,
+                                    deadline: deadline
+                                });
+                                renderAllModules();
+                            }
+                        }
+                        
+                        // Parse SHOP tags (shopping items from AI)
+                        const shopMatches = text.matchAll(SHOP_REGEX);
+                        const shopItems = [];
+                        for (const match of shopMatches) {
+                            shopItems.push({
+                                name: match[1],
+                                qty: parseInt(match[2]),
+                                unit: match[3],
+                                price: parseInt(match[4]),
+                                location: match[5] || "온라인"
+                            });
+                        }
+                        if (shopItems.length > 0 && bakingModule) {
+                            console.log(`SSTSSD: Auto-detected ${shopItems.length} shopping items`);
+                            // Group by location
+                            const grouped = {};
+                            shopItems.forEach(item => {
+                                if (!grouped[item.location]) grouped[item.location] = [];
+                                grouped[item.location].push(item);
+                            });
+                            
+                            Object.entries(grouped).forEach(([location, items]) => {
+                                items.forEach(item => {
+                                    bakingModule.addToShoppingList(
+                                        item.name,
+                                        item.qty,
+                                        item.unit,
+                                        location,
+                                        item.price,
+                                        ["AI 자동 감지"]
+                                    );
+                                });
+                            });
+                            renderAllModules();
+                        }
                     }
                 }
             }
@@ -805,6 +884,144 @@ function initObserver() {
     } catch (error) {
         console.error('SSTSSD: Failed to initialize observer', error);
     }
+}
+
+// Build system prompt injection from all modules
+function buildDashboardPrompt() {
+    const chatData = getCurrentChatData();
+    if (!chatData) return '';
+    
+    let prompt = '\n[📊 Side Dashboard - Current State]\n';
+    
+    // Balance
+    if (balanceModule && chatData.balance) {
+        const living = chatData.balance.living;
+        const savings = balanceModule.getTotalSavings();
+        prompt += `\n[💳 Balance]\n`;
+        prompt += `생활비: ${living.toLocaleString()}원\n`;
+        prompt += `저축: ${savings.toLocaleString()}원\n`;
+        
+        if (chatData.balance.shopMode?.enabled) {
+            prompt += `가게 운영비: ${chatData.balance.shopMode.operatingFund.toLocaleString()}원\n`;
+        }
+    }
+    
+    // Schedule
+    if (scheduleModule && chatData.schedule) {
+        const todaySchedule = scheduleModule.getTodaySchedule();
+        if (todaySchedule.length > 0) {
+            prompt += `\n[📅 Today's Schedule]\n`;
+            todaySchedule.forEach(item => {
+                prompt += `- ${item.startTime || '시간 미정'} ${item.title}\n`;
+            });
+        }
+    }
+    
+    // Todo
+    if (todoModule && chatData.todo) {
+        const { urgent, inProgress } = todoModule.categorizeItems();
+        if (urgent.length > 0 || inProgress.length > 0) {
+            prompt += `\n[📝 Tasks]\n`;
+            urgent.forEach(item => prompt += `- ⚠️ ${item.title} (${todoModule.calculateDday(item.deadline)})\n`);
+            inProgress.forEach(item => prompt += `- ${item.title} (${todoModule.calculateDday(item.deadline)})\n`);
+        }
+    }
+    
+    // Inventory
+    if (inventoryModule && chatData.inventory) {
+        const alerts = inventoryModule.getAlerts();
+        const products = inventoryModule.getProducts();
+        
+        prompt += `\n[📦 Inventory]\n`;
+        if (alerts.low.length > 0 || alerts.out.length > 0) {
+            alerts.out.forEach(item => prompt += `- ❌ ${item.name}: 없음\n`);
+            alerts.low.forEach(item => prompt += `- ⚠️ ${item.name}: ${item.qty}${item.unit} (최소 ${item.minStock})\n`);
+        }
+        if (products.length > 0) {
+            prompt += `완제품:\n`;
+            products.forEach(p => prompt += `- ${p.name} ${p.qty}${p.unit}\n`);
+        }
+    }
+    
+    // Baking
+    if (bakingModule && chatData.baking) {
+        const activeRecipes = chatData.baking.recipes.filter(r => r.status === 'in_progress');
+        if (activeRecipes.length > 0) {
+            prompt += `\n[🧁 Active Baking]\n`;
+            activeRecipes.forEach(r => {
+                prompt += `- ${r.name} ×${r.yieldQty}`;
+                if (r.deadline) prompt += ` (납품: ${r.deadline})`;
+                prompt += `\n`;
+            });
+        }
+    }
+    
+    // Instagram
+    if (instagramModule && chatData.instagram) {
+        const ig = chatData.instagram;
+        prompt += `\n[📱 Instagram @${ig.username}]\n`;
+        prompt += `팔로워: ${ig.followers.toLocaleString()}\n`;
+        
+        const pendingDMs = ig.dms.filter(d => d.status === 'pending');
+        if (pendingDMs.length > 0) {
+            prompt += `DM 주문 대기: ${pendingDMs.length}건 (응답은 선택사항입니다)\n`;
+        }
+    }
+    
+    // Shop
+    if (shopModule && chatData.balance?.shopMode?.enabled && chatData.shop) {
+        const shop = chatData.shop;
+        const shopName = chatData.balance.shopMode.shopName || "가게";
+        prompt += `\n[🏪 Shop - "${shopName}"]\n`;
+        prompt += `영업 상태: ${shop.isOpen ? 'OPEN' : 'CLOSED'}\n`;
+        
+        if (shop.isOpen) {
+            // Show available stock
+            const saleProducts = inventoryModule ? 
+                inventoryModule.settings.inventory.items.filter(i => i.type === "sale_product") : [];
+            if (saleProducts.length > 0) {
+                prompt += `판매 가능:\n`;
+                saleProducts.forEach(p => {
+                    const menuItem = shop.menu.find(m => m.name === p.name);
+                    const price = menuItem ? menuItem.price : 0;
+                    prompt += `- ${p.name} ${p.qty}개 @${price.toLocaleString()}원`;
+                    if (p.qty <= 5) prompt += ' ⚠️ 품절 임박';
+                    if (p.qty <= 0) prompt += ' ❌ 품절';
+                    prompt += '\n';
+                });
+            }
+            
+            // Check if staff is operating today
+            const today = scheduleModule ? scheduleModule.formatDate(getRpDate()) : '';
+            const todayShift = shop.shifts.find(s => s.date === today && s.status !== 'cancelled');
+            if (todayShift) {
+                const staffMember = shop.staff.find(st => st.id === todayShift.staffId);
+                if (staffMember) {
+                    prompt += `\n오늘 운영: ${staffMember.name} (알바)\n`;
+                    prompt += `사장 부재 시: 판매와 포장만 가능, 베이킹 불가\n`;
+                    if (staffMember.skills) {
+                        staffMember.skills.forEach(s => {
+                            prompt += `- ${s.icon} ${s.name} ${'★'.repeat(s.stars)}${'☆'.repeat(3 - s.stars)}\n`;
+                        });
+                    }
+                }
+            }
+        }
+        
+        prompt += `\nWhen customer buys, use: <SALE>품명|수량|단가</SALE>\n`;
+        prompt += `When giving gifts, use: <GIFT>품명|수량|받는사람</GIFT>\n`;
+    }
+    
+    // Tag instructions
+    prompt += `\n[Available Tags]\n`;
+    prompt += `<FIN_IN>항목|금액</FIN_IN> — 수입 발생 시\n`;
+    prompt += `<FIN_OUT>항목|금액</FIN_OUT> — 지출 발생 시\n`;
+    prompt += `<GIFT>품명|수량|받는사람</GIFT> — 선물/증정 시\n`;
+    if (chatData.balance?.shopMode?.enabled) {
+        prompt += `<SALE>품명|수량|단가</SALE> — 판매 발생 시\n`;
+    }
+    
+    return prompt;
 }
 
 // Main initialization function
@@ -838,6 +1055,33 @@ async function init() {
 
         // Expose updateSummary globally for modules to call
         window.sstsdUpdateSummary = updateSummary;
+        
+        // Register prompt injection for AI context
+        eventSource.on(event_types.CHAT_COMPLETION_PROMPT_READY, (promptData) => {
+            try {
+                const dashboardPrompt = buildDashboardPrompt();
+                if (dashboardPrompt && promptData) {
+                    console.log('SSTSSD: Injecting dashboard state into AI prompt');
+                    // Add as system message to the prompt
+                    if (Array.isArray(promptData)) {
+                        promptData.push({
+                            role: 'system',
+                            content: dashboardPrompt
+                        });
+                    } else if (promptData.messages && Array.isArray(promptData.messages)) {
+                        promptData.messages.push({
+                            role: 'system',
+                            content: dashboardPrompt
+                        });
+                    } else if (promptData.prompt !== undefined) {
+                        // If it has a prompt property, append to it
+                        promptData.prompt += dashboardPrompt;
+                    }
+                }
+            } catch (error) {
+                console.error('SSTSSD: Failed to inject dashboard prompt', error);
+            }
+        });
 
         // Listen for chat changes
         eventSource.on(event_types.CHAT_CHANGED, () => {
