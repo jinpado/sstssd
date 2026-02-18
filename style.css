@@ -1348,3 +1348,266 @@ textarea.sstssd-input {
 .sstssd-balance-section-arrow.open {
     transform: rotate(90deg);
 }
+
+/* ===== Inventory Module Styles ===== */
+/* Module accent color: #10b981 (emerald green) */
+
+.sstssd-module[data-module="inventory"] .sstssd-module-header {
+    border-left-color: #10b981;
+}
+
+/* Sub-sections */
+.sstssd-sub-section {
+    margin-bottom: 12px;
+    border: 1px solid #2a2a4a;
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.sstssd-sub-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 12px;
+    background: #1e1e3a;
+    cursor: pointer;
+    transition: background 0.2s;
+    user-select: none;
+}
+
+.sstssd-sub-header:hover {
+    background: #2a2a4a;
+}
+
+.sstssd-sub-toggle {
+    background: none;
+    border: none;
+    color: #9ca3af;
+    font-size: 12px;
+    cursor: pointer;
+    padding: 2px;
+    transition: color 0.2s;
+}
+
+.sstssd-sub-toggle:hover {
+    color: #e0e0e0;
+}
+
+.sstssd-sub-content {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.3s ease;
+    padding: 0;
+}
+
+.sstssd-sub-content.sstssd-sub-open {
+    max-height: none;
+    overflow: visible;
+    padding: 12px;
+}
+
+/* Category groups */
+.sstssd-category-group {
+    margin-bottom: 16px;
+}
+
+.sstssd-category-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: #9ca3af;
+    margin-bottom: 8px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+/* Inventory items */
+.sstssd-inventory-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 12px;
+    background: #252550;
+    border: 1px solid #2a2a4a;
+    border-radius: 6px;
+    margin-bottom: 6px;
+    transition: all 0.2s;
+}
+
+.sstssd-inventory-item:hover {
+    background: #2a2a5a;
+    border-color: #10b981;
+}
+
+.sstssd-inventory-info {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 1;
+}
+
+.sstssd-inventory-name {
+    font-size: 14px;
+    color: #e0e0e0;
+    font-weight: 500;
+}
+
+.sstssd-inventory-qty {
+    font-size: 13px;
+    color: #9ca3af;
+}
+
+.sstssd-inventory-icon {
+    font-size: 16px;
+}
+
+.sstssd-inventory-date {
+    font-size: 12px;
+    color: #6b7280;
+    margin-left: 4px;
+}
+
+.sstssd-inventory-actions {
+    display: flex;
+    gap: 4px;
+}
+
+/* Product items */
+.sstssd-product-item {
+    border-left: 3px solid #f59e0b;
+}
+
+/* Alert sections */
+.sstssd-alert-section {
+    margin-bottom: 12px;
+}
+
+.sstssd-alert-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: #9ca3af;
+    margin-bottom: 8px;
+}
+
+.sstssd-alert-item {
+    padding: 8px 10px;
+    border-radius: 4px;
+    margin-bottom: 4px;
+    font-size: 13px;
+}
+
+.sstssd-alert-low {
+    background: #422006;
+    border: 1px solid #78350f;
+    color: #fbbf24;
+}
+
+.sstssd-alert-out {
+    background: #2a1020;
+    border: 1px solid #7f1d1d;
+    color: #ef4444;
+}
+
+/* History items */
+.sstssd-history-item {
+    padding: 8px 10px;
+    background: #1e1e3a;
+    border-radius: 4px;
+    margin-bottom: 4px;
+    font-size: 12px;
+    color: #9ca3af;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.sstssd-history-date {
+    color: #6b7280;
+    font-size: 11px;
+    min-width: 70px;
+}
+
+.sstssd-history-name {
+    font-weight: 500;
+    color: #e0e0e0;
+}
+
+.sstssd-history-change {
+    font-weight: 600;
+    min-width: 50px;
+}
+
+.sstssd-history-increase {
+    color: #4ade80;
+}
+
+.sstssd-history-decrease {
+    color: #f87171;
+}
+
+.sstssd-history-reason {
+    color: #9ca3af;
+    font-size: 11px;
+}
+
+/* ===== Baking Module Styles ===== */
+/* Module accent color: #ec4899 (pink) */
+
+.sstssd-module[data-module="baking"] .sstssd-module-header {
+    border-left-color: #ec4899;
+}
+
+/* Baking items */
+.sstssd-baking-item {
+    background: #252550;
+    border: 1px solid #2a2a4a;
+    border-radius: 8px;
+    padding: 12px;
+    margin-bottom: 8px;
+    transition: all 0.2s;
+}
+
+.sstssd-baking-item:hover {
+    background: #2a2a5a;
+    border-color: #ec4899;
+}
+
+.sstssd-baking-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+}
+
+.sstssd-baking-name {
+    font-size: 14px;
+    font-weight: 600;
+    color: #e0e0e0;
+}
+
+.sstssd-baking-yield {
+    font-size: 13px;
+    color: #9ca3af;
+}
+
+.sstssd-baking-ingredients {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 8px;
+}
+
+.sstssd-ingredient-tag {
+    display: inline-block;
+    padding: 4px 8px;
+    background: #1e1e3a;
+    border: 1px solid #2a2a4a;
+    border-radius: 4px;
+    font-size: 11px;
+    color: #9ca3af;
+}
+
+.sstssd-baking-actions {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+}
