@@ -882,6 +882,11 @@ function buildDashboardPrompt() {
     
     let prompt = '\n[📊 Side Dashboard - Current State]\n';
     
+    // Date
+    if (chatData.rpDate) {
+        prompt += `\n[📅 Date] ${chatData.rpDate}\n`;
+    }
+    
     // Balance
     if (balanceModule && chatData.balance) {
         const living = chatData.balance.living;
@@ -1009,6 +1014,8 @@ function buildDashboardPrompt() {
     if (chatData.balance?.shopMode?.enabled) {
         prompt += `<SALE>품명|수량|단가</SALE> — 판매 발생 시\n`;
     }
+    prompt += `<BAKE>메뉴명|수량|납품일(선택)</BAKE> — 베이킹 계획 시\n`;
+    prompt += `<SHOP>재료명|수량|단위|가격|장소(선택)</SHOP> — 재료 구매 필요 시\n`;
     
     return prompt;
 }
