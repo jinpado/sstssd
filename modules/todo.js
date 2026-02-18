@@ -306,8 +306,8 @@ export class TodoModule {
         // 할일 항목 클릭 (편집)
         container.querySelectorAll('.sstssd-todo-item').forEach(item => {
             item.addEventListener('click', (e) => {
-                // Ignore clicks on buttons and progress controls
-                if (e.target.tagName === 'BUTTON' || e.target.closest('.sstssd-progress-controls')) {
+                // Ignore clicks on buttons
+                if (e.target.tagName === 'BUTTON') {
                     return;
                 }
                 const id = parseInt(item.dataset.id);

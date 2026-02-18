@@ -55,7 +55,7 @@ export class ScheduleModule {
         todayAppointments.forEach(a => {
             todayItems.push({
                 type: 'appointment',
-                startTime: a.time || '00:00',
+                startTime: a.time || null,  // null for unspecified time
                 endTime: null,
                 title: a.title,
                 location: a.location,
@@ -65,8 +65,12 @@ export class ScheduleModule {
             });
         });
         
-        // 3. 시간순 정렬
-        todayItems.sort((a, b) => a.startTime.localeCompare(b.startTime));
+        // 3. 시간순 정렬 (null은 맨 뒤로)
+        todayItems.sort((a, b) => {
+            if (!a.startTime) return 1;
+            if (!b.startTime) return -1;
+            return a.startTime.localeCompare(b.startTime);
+        });
         
         return todayItems;
     }
@@ -322,9 +326,10 @@ export class ScheduleModule {
             } else {
                 // appointment
                 const apt = item.appointmentData;
+                const displayTime = item.startTime ? item.startTime : '시간 미정';
                 return `
                     <div class="sstssd-today-item appointment" data-id="${apt.id}">
-                        <div class="sstssd-today-time">${item.startTime !== '00:00' ? item.startTime : '시간 미정'}</div>
+                        <div class="sstssd-today-time">${displayTime}</div>
                         <div class="sstssd-today-title">${item.icon} ${this.escapeHtml(item.title)}</div>
                         ${item.location ? `<div class="sstssd-today-location">📍 ${this.escapeHtml(item.location)}</div>` : ''}
                         ${item.with ? `<div class="sstssd-today-with">👥 ${this.escapeHtml(item.with)}</div>` : ''}
@@ -338,7 +343,9 @@ export class ScheduleModule {
         }).join('');
     }
 
-    // 오늘 수업 렌더링 (deprecated, kept for compatibility)
+    /**
+     * @deprecated Use renderTodaySchedule() instead for unified class and appointment view
+     */
     renderTodayClasses(classes) {
         if (this.settings.schedule.mode === 'vacation') {
             return '<div class="sstssd-empty">🌴 방학 중</div>';
