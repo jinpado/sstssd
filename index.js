@@ -14,10 +14,10 @@ import { InstagramModule } from './modules/instagram.js';
 const MODULE_NAME = 'sstssd';
 
 // Tag detection regex patterns
-const FIN_IN_REGEX = /<FIN_IN>(.+?)\|(\d+)<\/FIN_IN>/g;
-const FIN_OUT_REGEX = /<FIN_OUT>(.+?)\|(\d+)<\/FIN_OUT>/g;
-const SALE_REGEX = /<SALE>(.+?)\|(\d+)\|(\d+)<\/SALE>/g;
-const GIFT_REGEX = /<GIFT>(.+?)\|(\d+)\|(.+?)<\/GIFT>/g;
+const FIN_IN_REGEX = /<FIN_IN>(.+?)\|(\d+)\s*<\/FIN_IN>/g;
+const FIN_OUT_REGEX = /<FIN_OUT>(.+?)\|(\d+)\s*<\/FIN_OUT>/g;
+const SALE_REGEX = /<SALE>(.+?)\|(\d+)\|(\d+)\s*<\/SALE>/g;
+const GIFT_REGEX = /<GIFT>(.+?)\|(\d+)\|(.+?)\s*<\/GIFT>/g;
 const BAKE_REGEX = /<BAKE>(.+?)\|(\d+)(?:\|(.+?))?\s*<\/BAKE>/g;
 const SHOP_REGEX = /<SHOP>(.+?)\|(\d+)\|(.+?)\|(\d+)(?:\|(.+?))?\s*<\/SHOP>/g;
 
@@ -964,7 +964,7 @@ function buildDashboardPrompt() {
         
         const pendingDMs = ig.dms.filter(d => d.status === 'pending');
         if (pendingDMs.length > 0) {
-            prompt += `DM 주문 대기: ${pendingDMs.length}건 (응답은 선택사항, 무시해도 패널티 없음)\n`;
+            prompt += `DM 주문 대기: ${pendingDMs.length}건 (응답은 선택사항입니다)\n`;
         }
     }
     

@@ -65,7 +65,7 @@ export class BakingModule {
             id: ++this.idCounter,
             name: data.name,
             ingredients: data.ingredients || [],  // [{ name: "아몬드가루", qty: 300, unit: "g" }]
-            steps: data.steps || [],  // [{ name: "단계명", estimatedTime: "예상시간", status: "waiting" }]
+            steps: data.steps || [],  // [{ name: "단계명", estimatedTime: "예상시간", status: "pending" }]
             yieldQty: data.yieldQty || 1,
             yieldUnit: data.yieldUnit || "개",
             deadline: data.deadline || null,  // 납품일
