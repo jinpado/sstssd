@@ -8,12 +8,14 @@ import { ScheduleModule } from './modules/schedule.js';
 import { BalanceModule } from './modules/balance.js';
 import { InventoryModule } from './modules/inventory.js';
 import { BakingModule } from './modules/baking.js';
+import { ShopModule } from './modules/shop.js';
 
 const MODULE_NAME = 'sstssd';
 
 // Tag detection regex patterns
 const FIN_IN_REGEX = /<FIN_IN>(.+?)\|(\d+)<\/FIN_IN>/g;
 const FIN_OUT_REGEX = /<FIN_OUT>(.+?)\|(\d+)<\/FIN_OUT>/g;
+const SALE_REGEX = /<SALE>(.+?)\|(\d+)\|(\d+)<\/SALE>/g;
 
 // Extension state
 let panelElement = null;
@@ -22,6 +24,7 @@ let scheduleModule = null;
 let balanceModule = null;
 let inventoryModule = null;
 let bakingModule = null;
+let shopModule = null;
 let observer = null;
 let currentChatId = null;
 
@@ -32,7 +35,7 @@ function initSettings() {
             chats: {},  // Chat-specific data
             globalSettings: {
                 panelOpen: true,
-                openModules: ['todo', 'schedule', 'balance', 'inventory', 'baking']
+                openModules: ['todo', 'schedule', 'balance', 'inventory', 'baking', 'shop']
             }
         };
     }
@@ -54,7 +57,7 @@ function initSettings() {
         // Preserve global settings if they exist
         const panelOpen = extension_settings[MODULE_NAME].panelOpen !== undefined ? 
             extension_settings[MODULE_NAME].panelOpen : true;
-        const openModules = extension_settings[MODULE_NAME].openModules || ['todo', 'schedule', 'balance', 'inventory', 'baking'];
+        const openModules = extension_settings[MODULE_NAME].openModules || ['todo', 'schedule', 'balance', 'inventory', 'baking', 'shop'];
         
         // Restructure to new format
         extension_settings[MODULE_NAME] = {
@@ -78,7 +81,7 @@ function initSettings() {
     if (!extension_settings[MODULE_NAME].globalSettings) {
         extension_settings[MODULE_NAME].globalSettings = {
             panelOpen: true,
-            openModules: ['todo', 'schedule', 'balance', 'inventory', 'baking']
+            openModules: ['todo', 'schedule', 'balance', 'inventory', 'baking', 'shop']
         };
     }
     
@@ -112,7 +115,8 @@ function getCurrentChatData() {
             },
             balance: null,  // Will be initialized by BalanceModule
             inventory: null,  // Will be initialized by InventoryModule
-            baking: null  // Will be initialized by BakingModule
+            baking: null,  // Will be initialized by BakingModule
+            shop: null  // Will be initialized by ShopModule
         };
     }
     
@@ -196,6 +200,9 @@ function createPanel() {
             <div class="sstssd-module" data-module="baking">
                 <!-- Baking module content -->
             </div>
+            <div class="sstssd-module" data-module="shop">
+                <!-- Shop module content -->
+            </div>
         </div>
     `;
 
@@ -237,6 +244,17 @@ function updateSummary() {
             const personalTotal = chatData.balance.living + balanceModule.getTotalSavings();
             const shopFund = chatData.balance.shopMode.operatingFund;
             summaryParts.push(`💳 개인: ${formatCurrency(personalTotal)} | 🏪 가게: ${formatCurrency(shopFund)}`);
+            
+            // Add shop status if shop mode is on
+            if (shopModule && chatData.shop) {
+                const shopName = chatData.balance.shopMode.shopName || "가게";
+                if (chatData.shop.isOpen) {
+                    const dailySummary = shopModule.getDailySummary();
+                    summaryParts.push(`🏪 ${shopName} 영업중 | 오늘 매출: +${formatCurrency(dailySummary.totalSales)}`);
+                } else {
+                    summaryParts.push(`🏪 ${shopName} 영업종료`);
+                }
+            }
         } else {
             const totalAssets = balanceModule.getTotalAssets();
             summaryParts.push(`💳 잔고: ${formatCurrency(totalAssets)}`);
@@ -371,6 +389,7 @@ function showNoChatMessage() {
     const scheduleContainer = document.querySelector('.sstssd-module[data-module="schedule"]');
     const inventoryContainer = document.querySelector('.sstssd-module[data-module="inventory"]');
     const bakingContainer = document.querySelector('.sstssd-module[data-module="baking"]');
+    const shopContainer = document.querySelector('.sstssd-module[data-module="shop"]');
     
     if (balanceContainer) {
         balanceContainer.innerHTML = `
@@ -442,6 +461,21 @@ function showNoChatMessage() {
                 <button class="sstssd-module-toggle">▼</button>
             </div>
             <div class="sstssd-module-content" data-module="baking">
+                <div class="sstssd-empty">채팅방을 선택해주세요</div>
+            </div>
+        `;
+    }
+    
+    if (shopContainer) {
+        shopContainer.innerHTML = `
+            <div class="sstssd-module-header" data-module="shop">
+                <div class="sstssd-module-title">
+                    <span class="sstssd-module-icon">🏪</span>
+                    <span>가게</span>
+                </div>
+                <button class="sstssd-module-toggle">▼</button>
+            </div>
+            <div class="sstssd-module-content" data-module="shop">
                 <div class="sstssd-empty">채팅방을 선택해주세요</div>
             </div>
         `;
@@ -556,6 +590,13 @@ function initModules() {
         const bakingContainer = document.querySelector('.sstssd-module[data-module="baking"]');
         if (bakingContainer) {
             bakingModule.render(bakingContainer);
+        }
+        
+        // Initialize Shop module with chat-specific data, global settings getter, balance and inventory modules
+        shopModule = new ShopModule(chatData, saveSettings, getGlobalSettings, getRpDate, balanceModule, inventoryModule);
+        const shopContainer = document.querySelector('.sstssd-module[data-module="shop"]');
+        if (shopContainer) {
+            shopModule.render(shopContainer);
         }
 
         // Set initial module states from global settings
@@ -689,6 +730,27 @@ function initObserver() {
                                 renderAllModules();
                             }
                         }
+                        
+                        // Parse SALE tags (shop sales)
+                        const saleMatches = text.matchAll(SALE_REGEX);
+                        for (const match of saleMatches) {
+                            const menuName = match[1];
+                            const quantity = parseInt(match[2]);
+                            const unitPrice = parseInt(match[3]);
+                            if (shopModule && quantity > 0 && unitPrice > 0) {
+                                console.log(`SSTSSD: Auto-detected sale: ${menuName} ${quantity}개 @${unitPrice}원`);
+                                const chatData = getCurrentChatData();
+                                if (chatData?.balance?.shopMode?.enabled) {
+                                    shopModule.addSale({
+                                        menuName: menuName,
+                                        quantity: quantity,
+                                        unitPrice: unitPrice,
+                                        operator: "AI 자동" // Could be determined from context
+                                    });
+                                    renderAllModules();
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -758,4 +820,4 @@ jQuery(async () => {
 });
 
 // Export for potential use by other extensions
-export { MODULE_NAME, todoModule, scheduleModule, balanceModule, inventoryModule, bakingModule, getRpDate };
+export { MODULE_NAME, todoModule, scheduleModule, balanceModule, inventoryModule, bakingModule, shopModule, getRpDate };
