@@ -1,8 +1,9 @@
 // 📝 할일 모듈 (Todo Module)
 export class TodoModule {
-    constructor(settings, saveCallback) {
+    constructor(settings, saveCallback, getGlobalSettings) {
         this.settings = settings;
         this.saveCallback = saveCallback;
+        this.getGlobalSettings = getGlobalSettings;
         this.idCounter = Date.now();
         this.moduleName = 'todo';
         if (!this.settings.todo) {
@@ -123,9 +124,9 @@ export class TodoModule {
         const contentEl = container.querySelector('.sstssd-module-content');
         let isOpen = contentEl ? contentEl.classList.contains('sstssd-module-open') : false;
         
-        // Check global settings if available
-        if (!contentEl && this.settings.getGlobalSettings) {
-            const globalSettings = this.settings.getGlobalSettings();
+        // Check global settings if available and content element doesn't exist yet
+        if (!contentEl && this.getGlobalSettings) {
+            const globalSettings = this.getGlobalSettings();
             isOpen = globalSettings.openModules.includes(this.moduleName);
         }
 

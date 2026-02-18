@@ -2,9 +2,10 @@
 export class ScheduleModule {
     static DAYS = ['일', '월', '화', '수', '목', '금', '토'];
     
-    constructor(settings, saveCallback) {
+    constructor(settings, saveCallback, getGlobalSettings) {
         this.settings = settings;
         this.saveCallback = saveCallback;
+        this.getGlobalSettings = getGlobalSettings;
         this.idCounter = Date.now();
         this.moduleName = 'schedule';
         if (!this.settings.schedule) {
@@ -193,9 +194,9 @@ export class ScheduleModule {
         const contentEl = container.querySelector('.sstssd-module-content');
         let isOpen = contentEl ? contentEl.classList.contains('sstssd-module-open') : false;
         
-        // Check global settings if available
-        if (!contentEl && this.settings.getGlobalSettings) {
-            const globalSettings = this.settings.getGlobalSettings();
+        // Check global settings if available and content element doesn't exist yet
+        if (!contentEl && this.getGlobalSettings) {
+            const globalSettings = this.getGlobalSettings();
             isOpen = globalSettings.openModules.includes(this.moduleName);
         }
 

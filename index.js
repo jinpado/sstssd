@@ -49,7 +49,7 @@ function initSettings() {
         // Restructure to new format
         extension_settings[MODULE_NAME] = {
             chats: {
-                'legacy_pre_chat_isolation': oldData
+                'legacyPreChatIsolation': oldData
             },
             globalSettings: {
                 panelOpen: panelOpen,
@@ -325,18 +325,15 @@ function initModules() {
         
         const globalSettings = getGlobalSettings();
         
-        // Pass both chat data and a function to get global settings
-        chatData.getGlobalSettings = getGlobalSettings;
-        
-        // Initialize Todo module with chat-specific data
-        todoModule = new TodoModule(chatData, saveSettings);
+        // Initialize Todo module with chat-specific data and global settings getter
+        todoModule = new TodoModule(chatData, saveSettings, getGlobalSettings);
         const todoContainer = document.querySelector('.sstssd-module[data-module="todo"]');
         if (todoContainer) {
             todoModule.render(todoContainer);
         }
 
-        // Initialize Schedule module with chat-specific data
-        scheduleModule = new ScheduleModule(chatData, saveSettings);
+        // Initialize Schedule module with chat-specific data and global settings getter
+        scheduleModule = new ScheduleModule(chatData, saveSettings, getGlobalSettings);
         const scheduleContainer = document.querySelector('.sstssd-module[data-module="schedule"]');
         if (scheduleContainer) {
             scheduleModule.render(scheduleContainer);
