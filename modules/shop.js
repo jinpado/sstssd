@@ -97,7 +97,6 @@ export class ShopModule {
             id: ++this.idCounter,
             name: data.name,
             price: data.price || 0,
-            costPrice: data.costPrice || 0,
             icon: data.icon || "🍰",
             available: true
         };
@@ -124,12 +123,6 @@ export class ShopModule {
             return true;
         }
         return false;
-    }
-    
-    // Calculate profit margin
-    calculateProfitMargin(price, costPrice) {
-        if (price <= 0) return 0;
-        return Math.round(((price - costPrice) / price) * 100);
     }
     
     // ===== 판매 관리 =====
@@ -670,7 +663,6 @@ export class ShopModule {
     
     // Render menu item
     renderMenuItem(item) {
-        const margin = this.calculateProfitMargin(item.price, item.costPrice);
         return `
             <div class="sstssd-menu-item ${!item.available ? 'sstssd-menu-unavailable' : ''}">
                 <div class="sstssd-menu-info">
@@ -679,9 +671,6 @@ export class ShopModule {
                         <div class="sstssd-menu-name">${this.escapeHtml(item.name)}</div>
                         <div class="sstssd-menu-price">
                             @${this.formatCurrency(item.price)}
-                            ${item.costPrice > 0 ? `
-                                <span class="sstssd-menu-cost">원가 ${this.formatCurrency(item.costPrice)} | 이익률 ${margin}%</span>
-                            ` : ''}
                         </div>
                     </div>
                     <span class="sstssd-menu-status ${item.available ? 'sstssd-status-available' : 'sstssd-status-unavailable'}">
@@ -906,10 +895,6 @@ export class ShopModule {
                         <input type="number" name="price" class="sstssd-input" value="0" step="1" required>
                     </div>
                     <div class="sstssd-form-group">
-                        <label>원가 (선택)</label>
-                        <input type="number" name="costPrice" class="sstssd-input" value="0" step="1">
-                    </div>
-                    <div class="sstssd-form-group">
                         <label>아이콘</label>
                         <input type="text" name="icon" class="sstssd-input" value="🍰">
                     </div>
@@ -933,7 +918,6 @@ export class ShopModule {
             this.addMenuItem({
                 name: formData.get('name'),
                 price: parseInt(formData.get('price')),
-                costPrice: parseInt(formData.get('costPrice')),
                 icon: formData.get('icon')
             });
             
@@ -969,10 +953,6 @@ export class ShopModule {
                         <input type="number" name="price" class="sstssd-input" value="${item.price}" step="1" required>
                     </div>
                     <div class="sstssd-form-group">
-                        <label>원가 (선택)</label>
-                        <input type="number" name="costPrice" class="sstssd-input" value="${item.costPrice}" step="1">
-                    </div>
-                    <div class="sstssd-form-group">
                         <label>아이콘</label>
                         <input type="text" name="icon" class="sstssd-input" value="${item.icon}">
                     </div>
@@ -1002,7 +982,6 @@ export class ShopModule {
             this.updateMenuItem(id, {
                 name: formData.get('name'),
                 price: parseInt(formData.get('price')),
-                costPrice: parseInt(formData.get('costPrice')),
                 icon: formData.get('icon'),
                 available: formData.get('available') === 'on'
             });

@@ -416,6 +416,7 @@ export class InventoryModule {
                 </div>
                 <div class="sstssd-inventory-actions">
                     <button class="sstssd-btn sstssd-btn-sm" data-action="edit-product" data-id="${item.id}">수량 수정</button>
+                    <button class="sstssd-btn sstssd-btn-sm" data-action="delete-product" data-id="${item.id}">삭제</button>
                 </div>
             </div>
         `;
@@ -496,6 +497,20 @@ export class InventoryModule {
                 e.stopPropagation();
                 const id = parseInt(btn.dataset.id);
                 this.showEditProductModal(id);
+            });
+        });
+        
+        // 완제품 삭제 버튼
+        const deleteProductBtns = container.querySelectorAll('[data-action="delete-product"]');
+        deleteProductBtns.forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const id = parseInt(btn.dataset.id);
+                const item = this.settings.inventory.items.find(i => i.id === id);
+                if (item && confirm(`${item.name}을(를) 정말 삭제하시겠습니까?`)) {
+                    this.deleteItem(id);
+                    this.render(container);
+                }
             });
         });
     }
