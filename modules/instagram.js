@@ -11,12 +11,17 @@ export class InstagramModule {
         { from: "@cake_fan99", message: "생일케이크 커스텀 문의요!" },
         { from: "@dessert_daily", message: "쿠키 선물세트 가능한가요?" },
         { from: "@baking_love", message: "다음주 행사용 디저트 대량 주문 문의드려요" },
-        { from: "@macaron_addict", message: "마카롱 색상 커스텀 가능한가요?" },
-        { from: "@party_planner", message: "파티용 디저트 협찬 문의 드립니다" },
-        { from: "@cafe_owner", message: "카페에 납품 가능하신가요?" },
-        { from: "@gift_shop", message: "기념일 선물용으로 주문하고 싶어요" },
-        { from: "@student_council", message: "학교 행사 디저트 문의입니다" },
-        { from: "@cookie_monster", message: "쿠키 대량 주문 가능할까요?" }
+        { from: "@sweet_tooth22", message: "인스타에서 보고 연락드려요! 마카롱 10개 주문 가능한가요?" },
+        { from: "@party_planner", message: "파티용 디저트 50인분 견적 부탁드립니다" },
+        { from: "@cafe_owner", message: "카페에 디저트 납품 가능한지 문의드립니다" },
+        { from: "@foodie_gram", message: "디저트 협찬 리뷰 제안드려요!" },
+        { from: "@wedding_prep", message: "웨딩 답례품으로 쿠키 200개 가능할까요?" },
+        { from: "@mom_baking", message: "아이 생일파티에 쓸 마카롱 20개 주문하고 싶어요" },
+        { from: "@office_treat", message: "회사 간식으로 쿠키 30개 주문 문의요!" },
+        { from: "@gift_idea", message: "선물용 마카롱 포장 가능한가요?" },
+        { from: "@local_market", message: "주말 플리마켓 참여 관심 있으신가요?" },
+        { from: "@dessert_review", message: "디저트 리뷰 블로거입니다. 협업 제안드려요!" },
+        { from: "@sweet_couple", message: "기념일 케이크 커스텀 가능할까요?" }
     ];
     
     constructor(settings, saveCallback, getGlobalSettings, getRpDate, balanceModule, todoModule) {
@@ -153,8 +158,16 @@ export class InstagramModule {
     
     // 랜덤 DM 생성
     generateRandomDM() {
-        // 랜덤 템플릿 선택
-        const template = InstagramModule.DM_TEMPLATES[Math.floor(Math.random() * InstagramModule.DM_TEMPLATES.length)];
+        const templates = InstagramModule.DM_TEMPLATES;
+        // 이미 존재하는 from은 제외
+        const existingFroms = this.settings.instagram.dms
+            .filter(d => d.status === 'pending')
+            .map(d => d.from);
+        const available = templates.filter(t => !existingFroms.includes(t.from));
+        
+        if (available.length === 0) return;
+        
+        const template = available[Math.floor(Math.random() * available.length)];
         
         // DM 추가
         this.addDM({
@@ -521,7 +534,7 @@ export class InstagramModule {
                     <button class="sstssd-sub-toggle">${isOpen ? '▲' : '▼'}</button>
                 </div>
                 <div class="sstssd-sub-content ${isOpen ? 'sstssd-sub-open' : ''}">
-                    ${dms.length > 0 ? dms.map(dm => this.renderDMItem(dm)).join('') : '<div class="sstssd-empty">DM이 없습니다</div>'}
+                    ${dms.length > 0 ? dms.map(dm => this.renderDMItem(dm)).join('') : '<div class="sstssd-empty">📬 새 DM이 없습니다</div>'}
                 </div>
             </div>
         `;
