@@ -259,7 +259,7 @@ function updateSummary() {
         summaryParts.push('오늘 일정이 없습니다');
     }
 
-    summaryEl.innerHTML = `<div class="sstssd-summary-text">${summaryParts.join(' · ')}</div>`;
+    summaryEl.innerHTML = `<div class="sstssd-summary-text">${summaryParts.map(part => `<span class="sstssd-summary-item">${part}</span>`).join('')}</div>`;
     
     // Attach event listener to date edit button
     const editDateBtn = document.getElementById('sstssd-edit-date-btn');

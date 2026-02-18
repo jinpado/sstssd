@@ -90,6 +90,15 @@
     font-size: 13px;
     color: #9ca3af;
     line-height: 1.5;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.sstssd-summary-item {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 /* ===== Roleplay Date Button ===== */
@@ -129,7 +138,7 @@
     background: #1e1e3a;
     border: 1px solid #2a2a4a;
     border-radius: 12px;
-    overflow: hidden;
+    overflow: visible;
 }
 
 /* ===== Module Header ===== */
@@ -190,7 +199,8 @@
 }
 
 .sstssd-module-content.sstssd-module-open {
-    max-height: 2000px;
+    max-height: none;
+    overflow: visible;
     padding: 16px;
 }
 
@@ -1300,4 +1310,41 @@ textarea.sstssd-input {
 /* Module-specific accent */
 .sstssd-module[data-module="balance"] .sstssd-module-header {
     border-left-color: #a78bfa;
+}
+
+/* ===== Sub-accordion Styles ===== */
+.sstssd-balance-section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    cursor: pointer;
+    padding: 8px 12px;
+    background: #1e1e3a;
+    border-radius: 6px;
+    margin-bottom: 4px;
+    user-select: none;
+    transition: background 0.2s;
+}
+
+.sstssd-balance-section-header:hover {
+    background: #2a2a4a;
+}
+
+.sstssd-balance-section-content {
+    display: none;
+    padding: 8px 0;
+}
+
+.sstssd-balance-section-content.open {
+    display: block;
+}
+
+.sstssd-balance-section-arrow {
+    transition: transform 0.2s;
+    font-size: 12px;
+    color: #9ca3af;
+}
+
+.sstssd-balance-section-arrow.open {
+    transform: rotate(90deg);
 }
