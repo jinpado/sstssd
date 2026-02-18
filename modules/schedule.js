@@ -188,15 +188,25 @@ export class ScheduleModule {
         const dateStr = `${today.getMonth() + 1}/${today.getDate()}`;
         const dayStr = this.getTodayDay();
 
+        // Preserve accordion state
+        const contentEl = container.querySelector('.sstssd-module-content');
+        let isOpen = contentEl ? contentEl.classList.contains('sstssd-module-open') : false;
+        
+        // Check global settings if available
+        if (!contentEl && this.settings.getGlobalSettings) {
+            const globalSettings = this.settings.getGlobalSettings();
+            isOpen = globalSettings.openModules.includes('schedule');
+        }
+
         container.innerHTML = `
             <div class="sstssd-module-header" data-module="schedule">
                 <div class="sstssd-module-title">
                     <span class="sstssd-module-icon">📅</span>
                     <span>스케줄</span>
                 </div>
-                <button class="sstssd-module-toggle">▼</button>
+                <button class="sstssd-module-toggle">${isOpen ? '▲' : '▼'}</button>
             </div>
-            <div class="sstssd-module-content" data-module="schedule">
+            <div class="sstssd-module-content ${isOpen ? 'sstssd-module-open' : ''}" data-module="schedule">
                 <div class="sstssd-schedule-header">
                     <div class="sstssd-schedule-date">📅 오늘 ${dateStr} (${dayStr})</div>
                     <div class="sstssd-schedule-mode">
@@ -222,6 +232,11 @@ export class ScheduleModule {
         `;
 
         this.attachEventListeners(container);
+        
+        // Update summary after rendering
+        if (typeof window.sstsdUpdateSummary === 'function') {
+            window.sstsdUpdateSummary();
+        }
     }
 
     // 오늘 수업 렌더링
