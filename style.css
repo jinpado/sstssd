@@ -865,3 +865,439 @@ textarea.sstssd-input {
 .sstssd-modal {
     animation: sstssd-fade-in 0.2s ease;
 }
+
+/* ===== Balance Module Styles ===== */
+/* Module accent color: #a78bfa (lavender) */
+
+/* Balance overview section */
+.sstssd-balance-overview {
+    padding: 12px;
+    background: #1e1e3a;
+    border-radius: 8px;
+    margin-bottom: 12px;
+}
+
+.sstssd-balance-total {
+    font-size: 16px;
+    font-weight: 600;
+    margin-bottom: 12px;
+    color: #e0e0e0;
+}
+
+.sstssd-balance-section {
+    margin: 8px 0;
+    padding: 8px 0;
+}
+
+.sstssd-balance-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 4px 0;
+    font-size: 14px;
+}
+
+.sstssd-balance-subitem {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 3px 0 3px 12px;
+    font-size: 13px;
+    color: #9ca3af;
+}
+
+.sstssd-balance-label {
+    font-weight: 500;
+}
+
+.sstssd-balance-amount {
+    font-weight: 600;
+    color: #e0e0e0;
+}
+
+.sstssd-balance-positive {
+    color: #4ade80;
+}
+
+.sstssd-balance-negative {
+    color: #f87171;
+}
+
+.sstssd-balance-warning {
+    color: #fbbf24;
+}
+
+.sstssd-balance-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 12px;
+    flex-wrap: wrap;
+}
+
+/* Savings goals */
+.sstssd-goal-item {
+    background: #1e1e3a;
+    border-left: 3px solid #a78bfa;
+    padding: 12px;
+    margin-bottom: 12px;
+    border-radius: 4px;
+}
+
+.sstssd-goal-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+}
+
+.sstssd-goal-icon {
+    font-size: 18px;
+}
+
+.sstssd-goal-name {
+    font-weight: 600;
+    font-size: 14px;
+}
+
+.sstssd-progress-balance .sstssd-progress-fill {
+    background: #a78bfa;
+}
+
+.sstssd-progress-label {
+    font-size: 12px;
+    color: #9ca3af;
+    margin-top: 4px;
+}
+
+.sstssd-goal-subitems {
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px solid #2a2a4a;
+}
+
+.sstssd-goal-subitem {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 3px 0;
+    font-size: 12px;
+    color: #9ca3af;
+}
+
+.sstssd-goal-subitem-amount {
+    color: #e0e0e0;
+    font-weight: 500;
+}
+
+.sstssd-goal-actions {
+    display: flex;
+    gap: 6px;
+    margin-top: 10px;
+    flex-wrap: wrap;
+}
+
+/* Recurring transactions */
+.sstssd-recurring-item {
+    background: #1e1e3a;
+    padding: 10px;
+    margin-bottom: 8px;
+    border-radius: 4px;
+    border-left: 2px solid #a78bfa;
+}
+
+.sstssd-recurring-disabled {
+    opacity: 0.5;
+    border-left-color: #6b7280;
+}
+
+.sstssd-recurring-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 4px;
+    font-size: 13px;
+}
+
+.sstssd-recurring-day {
+    color: #9ca3af;
+    font-size: 12px;
+}
+
+.sstssd-recurring-amount {
+    font-size: 12px;
+    color: #e0e0e0;
+    margin-bottom: 6px;
+}
+
+.sstssd-recurring-actions {
+    display: flex;
+    gap: 6px;
+}
+
+/* Transaction list */
+.sstssd-section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+.sstssd-transaction-filters {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 10px;
+}
+
+.sstssd-filter-active {
+    background: #a78bfa !important;
+    color: #fff !important;
+}
+
+.sstssd-transaction-list {
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.sstssd-transaction-list-full {
+    max-height: 500px;
+}
+
+.sstssd-transaction-item {
+    background: #1e1e3a;
+    padding: 10px;
+    margin-bottom: 8px;
+    border-radius: 4px;
+    border-left: 2px solid #6b7280;
+}
+
+.sstssd-transaction-item[data-source="shop"] {
+    border-left-color: #fbbf24;
+}
+
+.sstssd-transaction-header {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 4px;
+    font-size: 13px;
+}
+
+.sstssd-transaction-date {
+    color: #9ca3af;
+    font-size: 11px;
+}
+
+.sstssd-transaction-icons {
+    font-size: 14px;
+}
+
+.sstssd-transaction-desc {
+    flex: 1;
+}
+
+.sstssd-transaction-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 4px;
+}
+
+.sstssd-transaction-amount {
+    font-weight: 600;
+    font-size: 14px;
+}
+
+.sstssd-transaction-memo {
+    font-size: 11px;
+    color: #9ca3af;
+    margin-top: 4px;
+    font-style: italic;
+}
+
+.sstssd-badge-recurring {
+    background: #6b7280;
+    color: #fff;
+    font-size: 10px;
+    padding: 2px 6px;
+    border-radius: 3px;
+}
+
+/* Summary stats */
+.sstssd-summary-stats {
+    background: #1e1e3a;
+    padding: 12px;
+    border-radius: 6px;
+    margin-bottom: 10px;
+}
+
+.sstssd-summary-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 4px 0;
+    font-size: 13px;
+}
+
+.sstssd-summary-subsection {
+    margin: 8px 0;
+}
+
+.sstssd-summary-indent {
+    padding-left: 16px;
+}
+
+.sstssd-summary-categories {
+    margin-top: 12px;
+}
+
+.sstssd-category-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+}
+
+.sstssd-category-label {
+    min-width: 80px;
+    font-size: 12px;
+    color: #9ca3af;
+}
+
+.sstssd-category-bar-container {
+    flex: 1;
+    height: 20px;
+    background: #2a2a4a;
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.sstssd-category-bar {
+    height: 100%;
+    background: #a78bfa;
+    border-radius: 4px;
+    transition: width 0.3s ease;
+}
+
+.sstssd-category-percentage {
+    min-width: 35px;
+    text-align: right;
+    font-size: 12px;
+    font-weight: 600;
+    color: #e0e0e0;
+}
+
+/* Shop mode toggle */
+.sstssd-shop-mode-toggle {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px;
+    background: #1e1e3a;
+    border-radius: 6px;
+    margin-bottom: 10px;
+}
+
+.sstssd-toggle {
+    position: relative;
+    display: inline-block;
+    width: 48px;
+    height: 24px;
+}
+
+.sstssd-toggle input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.sstssd-toggle-slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: #6b7280;
+    transition: 0.3s;
+    border-radius: 24px;
+}
+
+.sstssd-toggle-slider:before {
+    position: absolute;
+    content: "";
+    height: 18px;
+    width: 18px;
+    left: 3px;
+    bottom: 3px;
+    background-color: white;
+    transition: 0.3s;
+    border-radius: 50%;
+}
+
+.sstssd-toggle input:checked + .sstssd-toggle-slider {
+    background-color: #a78bfa;
+}
+
+.sstssd-toggle input:checked + .sstssd-toggle-slider:before {
+    transform: translateX(24px);
+}
+
+.sstssd-shop-settings {
+    margin-top: 12px;
+}
+
+.sstssd-shop-settings .sstssd-form-group {
+    margin-bottom: 10px;
+}
+
+.sstssd-shop-settings .sstssd-form-group label {
+    display: block;
+    font-size: 12px;
+    color: #9ca3af;
+    margin-bottom: 4px;
+}
+
+.sstssd-input-sm {
+    width: 100%;
+    font-size: 13px;
+    padding: 6px 10px;
+}
+
+/* Subitem modal row */
+.sstssd-subitem-row {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 8px;
+    align-items: center;
+}
+
+.sstssd-subitem-row input {
+    flex: 1;
+}
+
+.sstssd-subitem-row button {
+    flex-shrink: 0;
+}
+
+/* Button size variants */
+.sstssd-btn-xs {
+    padding: 3px 8px;
+    font-size: 11px;
+}
+
+/* Subsection styles */
+.sstssd-subsection {
+    margin: 12px 0;
+}
+
+.sstssd-subsection-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: #9ca3af;
+    margin-bottom: 8px;
+}
+
+/* Module-specific accent */
+.sstssd-module[data-module="balance"] .sstssd-module-header {
+    border-left-color: #a78bfa;
+}
