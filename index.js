@@ -111,6 +111,11 @@ function getGlobalSettings() {
     return extension_settings[MODULE_NAME].globalSettings;
 }
 
+// Validate date string
+function isValidDateString(dateStr) {
+    return !isNaN(new Date(dateStr).getTime());
+}
+
 // Get roleplay date or fallback to real date
 function getRpDate() {
     const chatData = getCurrentChatData();
@@ -394,7 +399,7 @@ function showDateSettingModal() {
         const newDate = formData.get('rpDate');
         
         // Validate date
-        if (!isNaN(new Date(newDate).getTime())) {
+        if (isValidDateString(newDate)) {
             updateRpDate(newDate, 'manual');
             renderAllModules();
             modal.remove();
@@ -523,11 +528,11 @@ function initObserver() {
                         const text = node.textContent || '';
                         
                         // Parse DATE tags from AI responses
-                        const dateMatch = text.match(/<DATE>([\d]{4}-[\d]{2}-[\d]{2})<\/DATE>/);
+                        const dateMatch = text.match(/<DATE>(\d{4}-\d{2}-\d{2})<\/DATE>/);
                         if (dateMatch) {
                             const newDate = dateMatch[1];
                             // Validate date
-                            if (!isNaN(new Date(newDate).getTime())) {
+                            if (isValidDateString(newDate)) {
                                 console.log(`SSTSSD: Auto-detected roleplay date: ${newDate}`);
                                 updateRpDate(newDate, 'auto');
                                 renderAllModules();
