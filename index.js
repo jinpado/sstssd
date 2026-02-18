@@ -243,55 +243,55 @@ function updateSummary() {
 
     let summaryParts = [];
 
-    // Add balance info
+    // 📅 롤플 날짜: 항상 표시
+    if (chatData) {
+        const editDateButton = `<button class="sstssd-btn-edit-date" id="sstssd-edit-date-btn" title="날짜 ${chatData.rpDate ? '수정' : '설정'}">[${chatData.rpDate ? '수정' : '설정'}]</button>`;
+        if (chatData.rpDate) {
+            summaryParts.push(`📅 롤플 날짜: ${chatData.rpDate} ${editDateButton}`);
+        } else {
+            summaryParts.push(`📅 롤플 날짜: 미설정 ${editDateButton}`);
+        }
+    }
+
+    // 💳 Balance info: 항상 표시
     if (balanceModule && chatData && chatData.balance) {
         const shopEnabled = chatData.balance.shopMode?.enabled;
         if (shopEnabled) {
             const personalTotal = chatData.balance.living + balanceModule.getTotalSavings();
-            const shopFund = chatData.balance.shopMode.operatingFund;
-            summaryParts.push(`💳 개인: ${formatCurrency(personalTotal)} | 🏪 가게: ${formatCurrency(shopFund)}`);
+            summaryParts.push(`💳 개인: ${formatCurrency(personalTotal)}`);
             
-            // Add shop status if shop mode is on
-            if (shopModule && chatData.shop) {
-                const shopName = chatData.balance.shopMode.shopName || "가게";
-                if (chatData.shop.isOpen) {
-                    const dailySummary = shopModule.getDailySummary();
-                    summaryParts.push(`🏪 ${shopName} 영업중 | 오늘 매출: +${formatCurrency(dailySummary.totalSales)}`);
-                } else {
-                    summaryParts.push(`🏪 ${shopName} 영업종료`);
-                }
-            }
+            // 🏪 가게: 가게 모드 ON일 때만 표시
+            const shopFund = chatData.balance.shopMode.operatingFund;
+            summaryParts.push(`🏪 가게: ${formatCurrency(shopFund)}`);
         } else {
             const totalAssets = balanceModule.getTotalAssets();
-            summaryParts.push(`💳 잔고: ${formatCurrency(totalAssets)}`);
+            summaryParts.push(`💳 개인: ${formatCurrency(totalAssets)}`);
         }
     }
 
-    // Add roleplay date display
-    if (chatData) {
-        if (chatData.rpDate) {
-            const source = chatData.rpDateSource === 'auto' ? '자동 감지됨' : '수동 설정';
-            summaryParts.push(`📅 롤플 날짜: ${chatData.rpDate} (${source}) <button class="sstssd-btn-edit-date" id="sstssd-edit-date-btn" title="날짜 수정">[수정]</button>`);
-        } else {
-            summaryParts.push(`📅 롤플 날짜: 미설정 <button class="sstssd-btn-edit-date" id="sstssd-edit-date-btn" title="날짜 설정">[설정]</button>`);
-        }
+    // 🎓 다음 수업: 학생 모드 ON + 수업 있을 때만 (if schedule module has semester mode)
+    if (nextClass && chatData?.schedule?.mode === 'semester') {
+        summaryParts.push(`🎓 다음 수업: ${nextClass.startTime} ${nextClass.subject}`);
     }
 
-    if (urgentCount > 0) {
-        summaryParts.push(`⚠️ 마감임박 ${urgentCount}건`);
-    }
-
-    if (nextClass) {
-        summaryParts.push(`🕐 다음 수업: ${nextClass.startTime} ${nextClass.subject}`);
-    }
-
+    // 📌 다음 약속: 약속 있을 때만
     if (upcomingAppointments.length > 0) {
         const nextApt = upcomingAppointments[0];
         const aptDate = new Date(nextApt.date);
         summaryParts.push(`📌 다음 약속: ${aptDate.getMonth() + 1}/${aptDate.getDate()} ${nextApt.title}`);
     }
     
-    // Add Instagram info
+    // 🏪 영업: 가게 모드 ON일 때만 표시
+    if (chatData?.balance?.shopMode?.enabled && shopModule && chatData.shop) {
+        const shopName = chatData.balance.shopMode.shopName || "가게";
+        if (chatData.shop.isOpen) {
+            summaryParts.push(`🏪 영업: 🟢 OPEN`);
+        } else {
+            summaryParts.push(`🏪 영업: 🔴 CLOSED`);
+        }
+    }
+    
+    // 📱 팔로워: 항상 표시
     if (instagramModule && chatData && chatData.instagram) {
         const followers = chatData.instagram.followers;
         const pendingDMs = instagramModule.getPendingDMCount();
