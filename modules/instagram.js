@@ -5,6 +5,20 @@ export class InstagramModule {
     static DM_EXPIRY_DAYS = 7;
     static FOLLOWER_DECAY_THRESHOLD_DAYS = 7;
     
+    // DM 템플릿
+    static DM_TEMPLATES = [
+        { from: "@sweet_lover", message: "마카롱 주문 가능할까요?" },
+        { from: "@cake_fan99", message: "생일케이크 커스텀 문의요!" },
+        { from: "@dessert_daily", message: "쿠키 선물세트 가능한가요?" },
+        { from: "@baking_love", message: "다음주 행사용 디저트 대량 주문 문의드려요" },
+        { from: "@macaron_addict", message: "마카롱 색상 커스텀 가능한가요?" },
+        { from: "@party_planner", message: "파티용 디저트 협찬 문의 드립니다" },
+        { from: "@cafe_owner", message: "카페에 납품 가능하신가요?" },
+        { from: "@gift_shop", message: "기념일 선물용으로 주문하고 싶어요" },
+        { from: "@student_council", message: "학교 행사 디저트 문의입니다" },
+        { from: "@cookie_monster", message: "쿠키 대량 주문 가능할까요?" }
+    ];
+    
     constructor(settings, saveCallback, getGlobalSettings, getRpDate, balanceModule, todoModule) {
         this.settings = settings;
         this.saveCallback = saveCallback;
@@ -95,11 +109,53 @@ export class InstagramModule {
         const followerGrowth = this.updateFollowers(reaction.reaction);
         this.settings.instagram.followerChange += followerGrowth;
         
+        // Check for random DM generation after post
+        this.checkRandomDM(reaction.reaction);
+        
         // Update balance module SNS income
         this.updateSNSIncome();
         
         this.saveCallback();
         return { post: newPost, followerGrowth };
+    }
+    
+    // 랜덤 DM 생성 체크
+    checkRandomDM(postReaction) {
+        const followers = this.settings.instagram.followers;
+        
+        // 기본 확률: 게시물 올린 후 10~30% 확률
+        const baseChance = 0.10;
+        
+        // 팔로워 많을수록 확률 증가 (최대 +15%)
+        const followerBonus = Math.min(followers / 100000, 0.15);
+        
+        // 🔥 반응 게시물 후 확률 더 높음
+        const reactionBonus = {
+            'hot2': 0.15,  // 🔥🔥
+            'hot': 0.10,   // 🔥
+            'normal': 0.05,
+            'low': 0
+        };
+        const hotPostBonus = reactionBonus[postReaction] || 0;
+        
+        const totalChance = baseChance + followerBonus + hotPostBonus;
+        
+        // 랜덤 확률 체크
+        if (Math.random() < totalChance) {
+            this.generateRandomDM();
+        }
+    }
+    
+    // 랜덤 DM 생성
+    generateRandomDM() {
+        // 랜덤 템플릿 선택
+        const template = InstagramModule.DM_TEMPLATES[Math.floor(Math.random() * InstagramModule.DM_TEMPLATES.length)];
+        
+        // DM 추가
+        this.addDM({
+            from: template.from,
+            message: template.message
+        });
     }
     
     // 반응 생성 (좋아요, 댓글, 공유)
@@ -397,7 +453,6 @@ export class InstagramModule {
                 </div>
                 <div class="sstssd-sub-content ${isOpen ? 'sstssd-sub-open' : ''}">
                     ${recentPosts.length > 0 ? recentPosts.map(post => this.renderPostItem(post)).join('') : '<div class="sstssd-empty">게시물이 없습니다</div>'}
-                    <button class="sstssd-btn sstssd-btn-add" data-action="add-post">+ 게시물 추가</button>
                 </div>
             </div>
         `;
@@ -462,7 +517,6 @@ export class InstagramModule {
                 </div>
                 <div class="sstssd-sub-content ${isOpen ? 'sstssd-sub-open' : ''}">
                     ${dms.length > 0 ? dms.map(dm => this.renderDMItem(dm)).join('') : '<div class="sstssd-empty">DM이 없습니다</div>'}
-                    <button class="sstssd-btn sstssd-btn-add" data-action="add-dm">+ DM 추가</button>
                 </div>
             </div>
         `;
@@ -529,18 +583,6 @@ export class InstagramModule {
                 }
             });
         });
-        
-        // Add post button
-        const addPostBtn = container.querySelector('[data-action="add-post"]');
-        if (addPostBtn) {
-            addPostBtn.addEventListener('click', () => this.showAddPostModal());
-        }
-        
-        // Add DM button
-        const addDMBtn = container.querySelector('[data-action="add-dm"]');
-        if (addDMBtn) {
-            addDMBtn.addEventListener('click', () => this.showAddDMModal());
-        }
         
         // Accept DM buttons
         container.querySelectorAll('[data-action="accept-dm"]').forEach(btn => {
@@ -632,57 +674,6 @@ export class InstagramModule {
             if (result.followerGrowth > 0) {
                 alert(`게시물이 업로드되었습니다!\n\n팔로워 +${result.followerGrowth}명 증가 🎉\n반응: ${result.post.reaction === 'hot2' ? '🔥🔥 대박!' : result.post.reaction === 'hot' ? '🔥 좋음' : result.post.reaction === 'normal' ? '보통' : '📉 저조'}`);
             }
-            
-            const moduleContainer = document.querySelector('.sstssd-module[data-module="instagram"]');
-            if (moduleContainer) {
-                this.render(moduleContainer);
-            }
-            
-            modal.remove();
-        });
-        
-        cancelBtn.addEventListener('click', () => modal.remove());
-        overlay.addEventListener('click', () => modal.remove());
-    }
-    
-    // DM 추가 모달
-    showAddDMModal() {
-        const modal = document.createElement('div');
-        modal.className = 'sstssd-modal';
-        modal.innerHTML = `
-            <div class="sstssd-modal-overlay"></div>
-            <div class="sstssd-modal-content">
-                <h3>📬 DM 추가</h3>
-                <form id="sstssd-add-dm-form">
-                    <div class="sstssd-form-group">
-                        <label>보낸 사람</label>
-                        <input type="text" name="from" class="sstssd-input" required placeholder="예: @sweet_love">
-                    </div>
-                    <div class="sstssd-form-group">
-                        <label>메시지</label>
-                        <textarea name="message" class="sstssd-input" rows="3" required placeholder="주문 내용을 입력하세요"></textarea>
-                    </div>
-                    <div class="sstssd-form-actions">
-                        <button type="button" class="sstssd-btn sstssd-btn-cancel">취소</button>
-                        <button type="submit" class="sstssd-btn sstssd-btn-primary">추가</button>
-                    </div>
-                </form>
-            </div>
-        `;
-        document.body.appendChild(modal);
-        
-        const form = modal.querySelector('#sstssd-add-dm-form');
-        const cancelBtn = modal.querySelector('.sstssd-btn-cancel');
-        const overlay = modal.querySelector('.sstssd-modal-overlay');
-        
-        form.addEventListener('submit', (e) => {
-            e.preventDefault();
-            const formData = new FormData(form);
-            
-            this.addDM({
-                from: formData.get('from'),
-                message: formData.get('message')
-            });
             
             const moduleContainer = document.querySelector('.sstssd-module[data-module="instagram"]');
             if (moduleContainer) {
