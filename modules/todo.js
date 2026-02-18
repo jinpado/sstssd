@@ -3,6 +3,7 @@ export class TodoModule {
     constructor(settings, saveCallback) {
         this.settings = settings;
         this.saveCallback = saveCallback;
+        this.idCounter = Date.now();
         if (!this.settings.todo) {
             this.settings.todo = { items: [] };
         }
@@ -65,7 +66,7 @@ export class TodoModule {
     // 할일 추가
     addItem(data) {
         const newItem = {
-            id: Date.now(),
+            id: ++this.idCounter,
             title: data.title,
             deadline: data.deadline,
             estimatedTime: data.estimatedTime || '',

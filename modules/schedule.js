@@ -1,8 +1,11 @@
 // 📅 스케줄 모듈 (Schedule Module)
 export class ScheduleModule {
+    static DAYS = ['일', '월', '화', '수', '목', '금', '토'];
+    
     constructor(settings, saveCallback) {
         this.settings = settings;
         this.saveCallback = saveCallback;
+        this.idCounter = Date.now();
         if (!this.settings.schedule) {
             this.settings.schedule = {
                 mode: 'semester',
@@ -16,8 +19,7 @@ export class ScheduleModule {
 
     // 오늘 날짜의 요일 가져오기
     getTodayDay() {
-        const days = ['일', '월', '화', '수', '목', '금', '토'];
-        return days[new Date().getDay()];
+        return ScheduleModule.DAYS[new Date().getDay()];
     }
 
     // 오늘 수업 가져오기
@@ -65,7 +67,7 @@ export class ScheduleModule {
     // 약속 추가
     addAppointment(data) {
         const newAppointment = {
-            id: Date.now(),
+            id: ++this.idCounter,
             title: data.title,
             date: data.date,
             time: data.time || '',
@@ -95,7 +97,6 @@ export class ScheduleModule {
     postponeAppointment(id, newDate) {
         const apt = this.settings.schedule.appointments.find(a => a.id === id);
         if (apt) {
-            apt.status = 'postponed';
             apt.postponedTo = newDate;
             apt.date = newDate;
             apt.status = 'active';
@@ -128,7 +129,7 @@ export class ScheduleModule {
     // 수업 추가
     addClass(day, classData) {
         const newClass = {
-            id: Date.now(),
+            id: ++this.idCounter,
             startTime: classData.startTime,
             endTime: classData.endTime,
             subject: classData.subject,
@@ -245,8 +246,7 @@ export class ScheduleModule {
     renderAppointment(apt) {
         const aptDate = new Date(apt.date);
         const dateStr = `${aptDate.getMonth() + 1}/${aptDate.getDate()}`;
-        const days = ['일', '월', '화', '수', '목', '금', '토'];
-        const dayStr = days[aptDate.getDay()];
+        const dayStr = ScheduleModule.DAYS[aptDate.getDay()];
 
         return `
             <div class="sstssd-appointment" data-id="${apt.id}">

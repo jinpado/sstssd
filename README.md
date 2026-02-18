@@ -50,6 +50,8 @@ A third-party extension for SillyTavern that adds a side dashboard panel with to
 2. Restart SillyTavern or reload extensions
 3. The side dashboard panel will appear automatically
 
+**Note**: The extension has `auto_update` enabled in the manifest. This allows SillyTavern to automatically update the extension when new versions are available. If you prefer to control updates manually, you can set `"auto_update": false` in the `manifest.json` file.
+
 ## File Structure
 
 ```

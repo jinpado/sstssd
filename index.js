@@ -225,11 +225,13 @@ function attachEventListeners() {
     // Module toggles
     document.querySelectorAll('.sstssd-module-header').forEach(header => {
         header.addEventListener('click', (e) => {
-            if (e.target.closest('.sstssd-module-toggle') || e.target.classList.contains('sstssd-module-header')) {
-                const moduleName = header.dataset.module;
-                if (moduleName) {
-                    toggleModule(moduleName);
-                }
+            // Don't toggle if clicking on buttons inside the header
+            if (e.target.tagName === 'BUTTON' && !e.target.classList.contains('sstssd-module-toggle')) {
+                return;
+            }
+            const moduleName = header.dataset.module;
+            if (moduleName) {
+                toggleModule(moduleName);
             }
         });
     });
