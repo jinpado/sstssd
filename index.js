@@ -6,6 +6,8 @@ import { saveSettingsDebounced, eventSource, event_types } from '../../../../scr
 import { TodoModule } from './modules/todo.js';
 import { ScheduleModule } from './modules/schedule.js';
 import { BalanceModule } from './modules/balance.js';
+import { InventoryModule } from './modules/inventory.js';
+import { BakingModule } from './modules/baking.js';
 
 const MODULE_NAME = 'sstssd';
 
@@ -18,6 +20,8 @@ let panelElement = null;
 let todoModule = null;
 let scheduleModule = null;
 let balanceModule = null;
+let inventoryModule = null;
+let bakingModule = null;
 let observer = null;
 let currentChatId = null;
 
@@ -28,7 +32,7 @@ function initSettings() {
             chats: {},  // Chat-specific data
             globalSettings: {
                 panelOpen: true,
-                openModules: ['todo', 'schedule', 'balance']
+                openModules: ['todo', 'schedule', 'balance', 'inventory', 'baking']
             }
         };
     }
@@ -50,7 +54,7 @@ function initSettings() {
         // Preserve global settings if they exist
         const panelOpen = extension_settings[MODULE_NAME].panelOpen !== undefined ? 
             extension_settings[MODULE_NAME].panelOpen : true;
-        const openModules = extension_settings[MODULE_NAME].openModules || ['todo', 'schedule', 'balance'];
+        const openModules = extension_settings[MODULE_NAME].openModules || ['todo', 'schedule', 'balance', 'inventory', 'baking'];
         
         // Restructure to new format
         extension_settings[MODULE_NAME] = {
@@ -74,7 +78,7 @@ function initSettings() {
     if (!extension_settings[MODULE_NAME].globalSettings) {
         extension_settings[MODULE_NAME].globalSettings = {
             panelOpen: true,
-            openModules: ['todo', 'schedule']
+            openModules: ['todo', 'schedule', 'balance', 'inventory', 'baking']
         };
     }
     
@@ -106,7 +110,9 @@ function getCurrentChatData() {
                 },
                 appointments: []
             },
-            balance: null  // Will be initialized by BalanceModule
+            balance: null,  // Will be initialized by BalanceModule
+            inventory: null,  // Will be initialized by InventoryModule
+            baking: null  // Will be initialized by BakingModule
         };
     }
     
@@ -183,6 +189,12 @@ function createPanel() {
             </div>
             <div class="sstssd-module" data-module="schedule">
                 <!-- Schedule module content -->
+            </div>
+            <div class="sstssd-module" data-module="inventory">
+                <!-- Inventory module content -->
+            </div>
+            <div class="sstssd-module" data-module="baking">
+                <!-- Baking module content -->
             </div>
         </div>
     `;
@@ -357,6 +369,8 @@ function showNoChatMessage() {
     const balanceContainer = document.querySelector('.sstssd-module[data-module="balance"]');
     const todoContainer = document.querySelector('.sstssd-module[data-module="todo"]');
     const scheduleContainer = document.querySelector('.sstssd-module[data-module="schedule"]');
+    const inventoryContainer = document.querySelector('.sstssd-module[data-module="inventory"]');
+    const bakingContainer = document.querySelector('.sstssd-module[data-module="baking"]');
     
     if (balanceContainer) {
         balanceContainer.innerHTML = `
@@ -398,6 +412,36 @@ function showNoChatMessage() {
                 <button class="sstssd-module-toggle">▼</button>
             </div>
             <div class="sstssd-module-content" data-module="schedule">
+                <div class="sstssd-empty">채팅방을 선택해주세요</div>
+            </div>
+        `;
+    }
+    
+    if (inventoryContainer) {
+        inventoryContainer.innerHTML = `
+            <div class="sstssd-module-header" data-module="inventory">
+                <div class="sstssd-module-title">
+                    <span class="sstssd-module-icon">📦</span>
+                    <span>재고</span>
+                </div>
+                <button class="sstssd-module-toggle">▼</button>
+            </div>
+            <div class="sstssd-module-content" data-module="inventory">
+                <div class="sstssd-empty">채팅방을 선택해주세요</div>
+            </div>
+        `;
+    }
+    
+    if (bakingContainer) {
+        bakingContainer.innerHTML = `
+            <div class="sstssd-module-header" data-module="baking">
+                <div class="sstssd-module-title">
+                    <span class="sstssd-module-icon">🧁</span>
+                    <span>베이킹</span>
+                </div>
+                <button class="sstssd-module-toggle">▼</button>
+            </div>
+            <div class="sstssd-module-content" data-module="baking">
                 <div class="sstssd-empty">채팅방을 선택해주세요</div>
             </div>
         `;
@@ -498,6 +542,20 @@ function initModules() {
         const scheduleContainer = document.querySelector('.sstssd-module[data-module="schedule"]');
         if (scheduleContainer) {
             scheduleModule.render(scheduleContainer);
+        }
+        
+        // Initialize Inventory module with chat-specific data and global settings getter
+        inventoryModule = new InventoryModule(chatData, saveSettings, getGlobalSettings, getRpDate);
+        const inventoryContainer = document.querySelector('.sstssd-module[data-module="inventory"]');
+        if (inventoryContainer) {
+            inventoryModule.render(inventoryContainer);
+        }
+        
+        // Initialize Baking module with chat-specific data, global settings getter, and inventory module
+        bakingModule = new BakingModule(chatData, saveSettings, getGlobalSettings, getRpDate, inventoryModule);
+        const bakingContainer = document.querySelector('.sstssd-module[data-module="baking"]');
+        if (bakingContainer) {
+            bakingModule.render(bakingContainer);
         }
 
         // Set initial module states from global settings
@@ -700,4 +758,4 @@ jQuery(async () => {
 });
 
 // Export for potential use by other extensions
-export { MODULE_NAME, todoModule, scheduleModule, balanceModule, getRpDate };
+export { MODULE_NAME, todoModule, scheduleModule, balanceModule, inventoryModule, bakingModule, getRpDate };
