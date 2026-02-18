@@ -75,6 +75,7 @@ export class TodoModule {
             estimatedTime: data.estimatedTime || '',
             memo: data.memo || '',
             status: 'todo',
+            progress: 0,                 // NEW: 0~100
             completedAt: null,
             createdAt: new Date().toISOString().split('T')[0]
         };
@@ -99,8 +100,37 @@ export class TodoModule {
         const item = this.settings.todo.items.find(i => i.id === id);
         if (item) {
             item.status = 'done';
+            item.progress = 100;
             item.completedAt = new Date().toISOString().split('T')[0];
             this.saveCallback();
+        }
+        return item;
+    }
+
+    // 진행도 조절
+    updateProgress(id, delta) {
+        const item = this.settings.todo.items.find(i => i.id === id);
+        if (item && item.status !== 'done') {
+            // Initialize progress if undefined (backward compatibility)
+            if (item.progress === undefined) {
+                item.progress = 0;
+            }
+            
+            item.progress = Math.max(0, Math.min(100, item.progress + delta));
+            this.saveCallback();
+            
+            // Auto-complete confirmation at 100%
+            if (item.progress === 100) {
+                setTimeout(() => {
+                    if (confirm('완료 처리할까요?')) {
+                        this.completeItem(id);
+                        const container = document.querySelector('.sstssd-module[data-module="todo"]');
+                        if (container) {
+                            this.render(container);
+                        }
+                    }
+                }, 100);
+            }
         }
         return item;
     }
@@ -181,6 +211,9 @@ export class TodoModule {
     // 할일 항목 렌더링
     renderItem(item, isUrgent) {
         const dday = this.calculateDday(item.deadline);
+        // Initialize progress if undefined (backward compatibility)
+        const progress = item.progress !== undefined ? item.progress : 0;
+        
         return `
             <div class="sstssd-todo-item ${isUrgent ? 'sstssd-todo-urgent' : ''}" data-id="${item.id}">
                 <div class="sstssd-todo-header">
@@ -191,6 +224,18 @@ export class TodoModule {
                     ${item.estimatedTime ? `<span class="sstssd-todo-time">⌛ ${this.escapeHtml(item.estimatedTime)}</span>` : ''}
                 </div>
                 ${item.memo ? `<div class="sstssd-todo-memo">메모: ${this.escapeHtml(item.memo)}</div>` : ''}
+                
+                <div class="sstssd-progress-container">
+                    <div class="sstssd-progress-bar">
+                        <div class="sstssd-progress-fill" style="width: ${progress}%"></div>
+                    </div>
+                    <div class="sstssd-progress-controls">
+                        <button class="sstssd-progress-btn" data-action="decrease-progress" data-id="${item.id}" title="10% 감소">-</button>
+                        <span class="sstssd-progress-text">${progress}%</span>
+                        <button class="sstssd-progress-btn" data-action="increase-progress" data-id="${item.id}" title="10% 증가">+</button>
+                    </div>
+                </div>
+                
                 <div class="sstssd-todo-actions">
                     <button class="sstssd-btn sstssd-btn-sm sstssd-btn-complete" data-id="${item.id}">✅ 완료</button>
                     <button class="sstssd-btn sstssd-btn-sm sstssd-btn-delete" data-id="${item.id}">🗑 삭제</button>
@@ -217,6 +262,25 @@ export class TodoModule {
             addBtn.addEventListener('click', () => this.showAddModal());
         }
 
+        // 진행도 조절 버튼
+        container.querySelectorAll('[data-action="increase-progress"]').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const id = parseInt(btn.dataset.id);
+                this.updateProgress(id, 10);
+                this.render(container);
+            });
+        });
+
+        container.querySelectorAll('[data-action="decrease-progress"]').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const id = parseInt(btn.dataset.id);
+                this.updateProgress(id, -10);
+                this.render(container);
+            });
+        });
+
         // 완료 버튼
         container.querySelectorAll('.sstssd-btn-complete').forEach(btn => {
             btn.addEventListener('click', (e) => {
@@ -241,7 +305,11 @@ export class TodoModule {
 
         // 할일 항목 클릭 (편집)
         container.querySelectorAll('.sstssd-todo-item').forEach(item => {
-            item.addEventListener('click', () => {
+            item.addEventListener('click', (e) => {
+                // Ignore clicks on buttons and progress controls
+                if (e.target.tagName === 'BUTTON' || e.target.closest('.sstssd-progress-controls')) {
+                    return;
+                }
                 const id = parseInt(item.dataset.id);
                 this.showEditModal(id);
             });
