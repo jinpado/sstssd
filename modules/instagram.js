@@ -123,16 +123,21 @@ export class InstagramModule {
     checkRandomDM(postReaction) {
         const followers = this.settings.instagram.followers;
         
-        // 기본 확률: 게시물 올린 후 10~30% 확률
+        // 기본 확률: 10% (게시물 반응에 따라 DM 발생)
         const baseChance = 0.10;
         
-        // 팔로워 많을수록 확률 증가 (최대 +15%)
+        // 팔로워 보너스: 10만 팔로워당 +1%, 최대 +15%
+        // 팔로워가 많을수록 주문 문의 확률 증가
         const followerBonus = Math.min(followers / 100000, 0.15);
         
-        // 🔥 반응 게시물 후 확률 더 높음
+        // 게시물 반응별 보너스:
+        // 🔥🔥 대박 반응: +15% (매우 높은 관심도)
+        // 🔥 좋은 반응: +10% (평균 이상 관심)
+        // 보통: +5% (일반 반응)
+        // 저조: +0% (관심 부족)
         const reactionBonus = {
-            'hot2': 0.15,  // 🔥🔥
-            'hot': 0.10,   // 🔥
+            'hot2': 0.15,
+            'hot': 0.10,
             'normal': 0.05,
             'low': 0
         };

@@ -245,11 +245,11 @@ function updateSummary() {
 
     // 📅 롤플 날짜: 항상 표시
     if (chatData) {
+        const editDateButton = `<button class="sstssd-btn-edit-date" id="sstssd-edit-date-btn" title="날짜 ${chatData.rpDate ? '수정' : '설정'}">[${chatData.rpDate ? '수정' : '설정'}]</button>`;
         if (chatData.rpDate) {
-            const source = chatData.rpDateSource === 'auto' ? '자동 감지됨' : '수동 설정';
-            summaryParts.push(`📅 롤플 날짜: ${chatData.rpDate} <button class="sstssd-btn-edit-date" id="sstssd-edit-date-btn" title="날짜 수정">[수정]</button>`);
+            summaryParts.push(`📅 롤플 날짜: ${chatData.rpDate} ${editDateButton}`);
         } else {
-            summaryParts.push(`📅 롤플 날짜: 미설정 <button class="sstssd-btn-edit-date" id="sstssd-edit-date-btn" title="날짜 설정">[설정]</button>`);
+            summaryParts.push(`📅 롤플 날짜: 미설정 ${editDateButton}`);
         }
     }
 

@@ -196,12 +196,13 @@ export class BakingModule {
                 qty: qty,
                 unit: unit,
                 price: estimatedPrice,
-                sources: sources,
-                checked: false
+                sources: sources
             });
         }
         
         // 총액 재계산
+        // 주의: item.price는 해당 항목의 총 구매 가격 (수량 × 단가)
+        // 예: 밀가루 400g의 price가 4000원이면, 그것이 총 비용
         locationList.totalPrice = locationList.items.reduce((sum, item) => sum + item.price, 0);
         
         this.saveCallback();
