@@ -92,6 +92,32 @@
     line-height: 1.5;
 }
 
+/* ===== Roleplay Date Button ===== */
+.sstssd-btn-edit-date {
+    background: none;
+    border: 1px solid #60a5fa;
+    color: #60a5fa;
+    padding: 2px 8px;
+    font-size: 11px;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.2s;
+    margin-left: 4px;
+}
+
+.sstssd-btn-edit-date:hover {
+    background: #60a5fa;
+    color: #ffffff;
+}
+
+.sstssd-btn-reset {
+    background: #7f1d1d;
+}
+
+.sstssd-btn-reset:hover {
+    background: #991b1b;
+}
+
 /* ===== Body ===== */
 .sstssd-body {
     padding: 20px;

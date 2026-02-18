@@ -1,9 +1,10 @@
 // 📝 할일 모듈 (Todo Module)
 export class TodoModule {
-    constructor(settings, saveCallback, getGlobalSettings) {
+    constructor(settings, saveCallback, getGlobalSettings, getRpDate) {
         this.settings = settings;
         this.saveCallback = saveCallback;
         this.getGlobalSettings = getGlobalSettings;
+        this.getRpDate = getRpDate;
         this.idCounter = Date.now();
         this.moduleName = 'todo';
         if (!this.settings.todo) {
@@ -13,7 +14,7 @@ export class TodoModule {
 
     // 마감임박 건수 가져오기 (대시보드 요약용)
     getUrgentCount() {
-        const today = new Date();
+        const today = this.getRpDate();
         today.setHours(0, 0, 0, 0);
         
         return this.settings.todo.items.filter(item => {
@@ -26,7 +27,7 @@ export class TodoModule {
 
     // D-day 계산
     calculateDday(deadline) {
-        const today = new Date();
+        const today = this.getRpDate();
         today.setHours(0, 0, 0, 0);
         const deadlineDate = new Date(deadline);
         const daysLeft = Math.ceil((deadlineDate - today) / (1000 * 60 * 60 * 24));
@@ -38,7 +39,7 @@ export class TodoModule {
 
     // 할일 항목 분류
     categorizeItems() {
-        const today = new Date();
+        const today = this.getRpDate();
         today.setHours(0, 0, 0, 0);
         
         const urgent = [];

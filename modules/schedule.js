@@ -2,10 +2,11 @@
 export class ScheduleModule {
     static DAYS = ['일', '월', '화', '수', '목', '금', '토'];
     
-    constructor(settings, saveCallback, getGlobalSettings) {
+    constructor(settings, saveCallback, getGlobalSettings, getRpDate) {
         this.settings = settings;
         this.saveCallback = saveCallback;
         this.getGlobalSettings = getGlobalSettings;
+        this.getRpDate = getRpDate;
         this.idCounter = Date.now();
         this.moduleName = 'schedule';
         if (!this.settings.schedule) {
@@ -21,7 +22,7 @@ export class ScheduleModule {
 
     // 오늘 날짜의 요일 가져오기
     getTodayDay() {
-        return ScheduleModule.DAYS[new Date().getDay()];
+        return ScheduleModule.DAYS[this.getRpDate().getDay()];
     }
 
     // 오늘 수업 가져오기
@@ -38,7 +39,7 @@ export class ScheduleModule {
         const classes = this.getTodayClasses();
         if (!classes || classes.length === 0) return null;
 
-        const now = new Date();
+        const now = this.getRpDate();
         const currentTime = now.getHours() * 60 + now.getMinutes();
 
         for (const cls of classes) {
@@ -54,7 +55,7 @@ export class ScheduleModule {
 
     // 다가오는 약속 가져오기
     getUpcomingAppointments() {
-        const today = new Date();
+        const today = this.getRpDate();
         today.setHours(0, 0, 0, 0);
 
         return this.settings.schedule.appointments
@@ -186,7 +187,7 @@ export class ScheduleModule {
     render(container) {
         const todayClasses = this.getTodayClasses();
         const appointments = this.getUpcomingAppointments();
-        const today = new Date();
+        const today = this.getRpDate();
         const dateStr = `${today.getMonth() + 1}/${today.getDate()}`;
         const dayStr = this.getTodayDay();
 
