@@ -65,8 +65,11 @@ export class BakingModule {
             id: ++this.idCounter,
             name: data.name,
             ingredients: data.ingredients || [],  // [{ name: "아몬드가루", qty: 300, unit: "g" }]
+            steps: data.steps || [],  // [{ name: "단계명", estimatedTime: "예상시간", status: "waiting" }]
             yieldQty: data.yieldQty || 1,
             yieldUnit: data.yieldUnit || "개",
+            deadline: data.deadline || null,  // 납품일
+            status: data.status || "pending",  // "pending" | "in_progress" | "completed"
             createdAt: this.formatDate(this.getRpDate())
         };
         
@@ -447,6 +450,7 @@ export class BakingModule {
                 <div class="sstssd-baking-header">
                     <span class="sstssd-baking-name">${this.escapeHtml(recipe.name)}</span>
                     <span class="sstssd-baking-yield">(${recipe.yieldQty}${recipe.yieldUnit})</span>
+                    ${recipe.deadline ? `<span class="sstssd-baking-deadline">📅 ${recipe.deadline}</span>` : ''}
                 </div>
                 <div class="sstssd-baking-ingredients">
                     ${recipe.ingredients.map(ing => `
