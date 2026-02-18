@@ -5,6 +5,7 @@ import { extension_settings, getContext } from '../../../extensions.js';
 import { saveSettingsDebounced, eventSource, event_types } from '../../../../script.js';
 import { TodoModule } from './modules/todo.js';
 import { ScheduleModule } from './modules/schedule.js';
+import { BalanceModule } from './modules/balance.js';
 
 const MODULE_NAME = 'sstssd';
 
@@ -12,6 +13,7 @@ const MODULE_NAME = 'sstssd';
 let panelElement = null;
 let todoModule = null;
 let scheduleModule = null;
+let balanceModule = null;
 let observer = null;
 let currentChatId = null;
 
@@ -22,7 +24,7 @@ function initSettings() {
             chats: {},  // Chat-specific data
             globalSettings: {
                 panelOpen: true,
-                openModules: ['todo', 'schedule']
+                openModules: ['todo', 'schedule', 'balance']
             }
         };
     }
@@ -44,7 +46,7 @@ function initSettings() {
         // Preserve global settings if they exist
         const panelOpen = extension_settings[MODULE_NAME].panelOpen !== undefined ? 
             extension_settings[MODULE_NAME].panelOpen : true;
-        const openModules = extension_settings[MODULE_NAME].openModules || ['todo', 'schedule'];
+        const openModules = extension_settings[MODULE_NAME].openModules || ['todo', 'schedule', 'balance'];
         
         // Restructure to new format
         extension_settings[MODULE_NAME] = {
@@ -99,7 +101,8 @@ function getCurrentChatData() {
                     '월': [], '화': [], '수': [], '목': [], '금': [], '토': [], '일': []
                 },
                 appointments: []
-            }
+            },
+            balance: null  // Will be initialized by BalanceModule
         };
     }
     
@@ -168,6 +171,9 @@ function createPanel() {
             </div>
         </div>
         <div class="sstssd-body">
+            <div class="sstssd-module" data-module="balance">
+                <!-- Balance module content -->
+            </div>
             <div class="sstssd-module" data-module="todo">
                 <!-- Todo module content -->
             </div>
@@ -208,6 +214,19 @@ function updateSummary() {
 
     let summaryParts = [];
 
+    // Add balance info
+    if (balanceModule && chatData && chatData.balance) {
+        const shopEnabled = chatData.balance.shopMode?.enabled;
+        if (shopEnabled) {
+            const personalTotal = chatData.balance.living + balanceModule.getTotalSavings();
+            const shopFund = chatData.balance.shopMode.operatingFund;
+            summaryParts.push(`💳 개인: ${formatCurrency(personalTotal)} | 🏪 가게: ${formatCurrency(shopFund)}`);
+        } else {
+            const totalAssets = balanceModule.getTotalAssets();
+            summaryParts.push(`💳 잔고: ${formatCurrency(totalAssets)}`);
+        }
+    }
+
     // Add roleplay date display
     if (chatData) {
         if (chatData.rpDate) {
@@ -246,6 +265,11 @@ function updateSummary() {
             showDateSettingModal();
         });
     }
+}
+
+// Format currency helper
+function formatCurrency(amount) {
+    return amount.toLocaleString('ko-KR') + '원';
 }
 
 // Toggle panel visibility
@@ -326,8 +350,24 @@ function showNoChatMessage() {
     }
     
     // Clear module contents
+    const balanceContainer = document.querySelector('.sstssd-module[data-module="balance"]');
     const todoContainer = document.querySelector('.sstssd-module[data-module="todo"]');
     const scheduleContainer = document.querySelector('.sstssd-module[data-module="schedule"]');
+    
+    if (balanceContainer) {
+        balanceContainer.innerHTML = `
+            <div class="sstssd-module-header" data-module="balance">
+                <div class="sstssd-module-title">
+                    <span class="sstssd-module-icon">💳</span>
+                    <span>잔고</span>
+                </div>
+                <button class="sstssd-module-toggle">▼</button>
+            </div>
+            <div class="sstssd-module-content" data-module="balance">
+                <div class="sstssd-empty">채팅방을 선택해주세요</div>
+            </div>
+        `;
+    }
     
     if (todoContainer) {
         todoContainer.innerHTML = `
@@ -435,6 +475,13 @@ function initModules() {
         
         const globalSettings = getGlobalSettings();
         
+        // Initialize Balance module with chat-specific data and global settings getter
+        balanceModule = new BalanceModule(chatData, saveSettings, getGlobalSettings, getRpDate);
+        const balanceContainer = document.querySelector('.sstssd-module[data-module="balance"]');
+        if (balanceContainer) {
+            balanceModule.render(balanceContainer);
+        }
+        
         // Initialize Todo module with chat-specific data and global settings getter
         todoModule = new TodoModule(chatData, saveSettings, getGlobalSettings, getRpDate);
         const todoContainer = document.querySelector('.sstssd-module[data-module="todo"]');
@@ -538,6 +585,48 @@ function initObserver() {
                                 renderAllModules();
                             }
                         }
+                        
+                        // Parse FIN_IN tags (income)
+                        const finInMatches = text.matchAll(/<FIN_IN>(.+?)\|(\d+)<\/FIN_IN>/g);
+                        for (const match of finInMatches) {
+                            const description = match[1];
+                            const amount = parseInt(match[2]);
+                            if (balanceModule && amount > 0) {
+                                console.log(`SSTSSD: Auto-detected income: ${description} ${amount}원`);
+                                const chatData = getCurrentChatData();
+                                const shopEnabled = chatData?.balance?.shopMode?.enabled;
+                                balanceModule.addTransaction({
+                                    type: "income",
+                                    source: shopEnabled ? "shop" : "personal",
+                                    category: "자동감지",
+                                    description: description,
+                                    amount: amount,
+                                    memo: "AI 응답에서 자동 감지"
+                                });
+                                renderAllModules();
+                            }
+                        }
+                        
+                        // Parse FIN_OUT tags (expense)
+                        const finOutMatches = text.matchAll(/<FIN_OUT>(.+?)\|(\d+)<\/FIN_OUT>/g);
+                        for (const match of finOutMatches) {
+                            const description = match[1];
+                            const amount = parseInt(match[2]);
+                            if (balanceModule && amount > 0) {
+                                console.log(`SSTSSD: Auto-detected expense: ${description} ${amount}원`);
+                                const chatData = getCurrentChatData();
+                                const shopEnabled = chatData?.balance?.shopMode?.enabled;
+                                balanceModule.addTransaction({
+                                    type: "expense",
+                                    source: shopEnabled ? "shop" : "personal",
+                                    category: "자동감지",
+                                    description: description,
+                                    amount: amount,
+                                    memo: "AI 응답에서 자동 감지"
+                                });
+                                renderAllModules();
+                            }
+                        }
                     }
                 }
             }
@@ -607,4 +696,4 @@ jQuery(async () => {
 });
 
 // Export for potential use by other extensions
-export { MODULE_NAME, todoModule, scheduleModule, getRpDate };
+export { MODULE_NAME, todoModule, scheduleModule, balanceModule, getRpDate };
