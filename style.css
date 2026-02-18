@@ -383,6 +383,50 @@
     color: #9ca3af;
 }
 
+/* ===== Today's Schedule (Unified Classes + Appointments) ===== */
+.sstssd-today-item {
+    padding: 12px;
+    border-left: 3px solid;
+    margin-bottom: 10px;
+    background: #252550;
+    border-radius: 6px;
+    transition: all 0.2s;
+}
+
+.sstssd-today-item.class {
+    border-left-color: #c084fc; /* 연보라 - 수업 */
+}
+
+.sstssd-today-item.appointment {
+    border-left-color: #fb923c; /* 오렌지 - 약속 */
+    cursor: pointer;
+}
+
+.sstssd-today-item.appointment:hover {
+    background: #2a2a5a;
+    border-left-color: #f97316;
+}
+
+.sstssd-today-time {
+    font-size: 12px;
+    color: #9ca3af;
+    margin-bottom: 4px;
+}
+
+.sstssd-today-title {
+    font-size: 14px;
+    color: #e0e0e0;
+    font-weight: 600;
+    margin-bottom: 4px;
+}
+
+.sstssd-today-location,
+.sstssd-today-with {
+    font-size: 12px;
+    color: #9ca3af;
+    margin-bottom: 3px;
+}
+
 .sstssd-schedule-class {
     padding: 8px 12px;
     background: #252550;

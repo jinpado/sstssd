@@ -25,6 +25,60 @@ export class ScheduleModule {
         return ScheduleModule.DAYS[this.getRpDate().getDay()];
     }
 
+    // 오늘 일정 통합 (수업 + 약속) - 시간순 정렬
+    getTodaySchedule() {
+        const rpDate = this.getRpDate();
+        const todayDay = this.getTodayDay();
+        const todayStr = this.formatDate(rpDate);
+        
+        let todayItems = [];
+        
+        // 1. 오늘 수업 추가 (학기 중일 때만)
+        if (this.settings.schedule.mode === 'semester') {
+            const classes = this.settings.schedule.timetable[todayDay] || [];
+            classes.forEach(c => {
+                todayItems.push({
+                    type: 'class',
+                    startTime: c.startTime,
+                    endTime: c.endTime,
+                    title: c.subject,
+                    location: c.location,
+                    icon: '🎓'
+                });
+            });
+        }
+        
+        // 2. 오늘 약속 추가
+        const todayAppointments = this.settings.schedule.appointments.filter(a => {
+            return a.date === todayStr && a.status === 'active';
+        });
+        todayAppointments.forEach(a => {
+            todayItems.push({
+                type: 'appointment',
+                startTime: a.time || '00:00',
+                endTime: null,
+                title: a.title,
+                location: a.location,
+                with: a.with,
+                icon: '📌',
+                appointmentData: a  // 미루기/취소 버튼용
+            });
+        });
+        
+        // 3. 시간순 정렬
+        todayItems.sort((a, b) => a.startTime.localeCompare(b.startTime));
+        
+        return todayItems;
+    }
+
+    // 날짜 포맷 (YYYY-MM-DD)
+    formatDate(date) {
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+    }
+
     // 오늘 수업 가져오기
     getTodayClasses() {
         if (this.settings.schedule.mode === 'vacation') {
@@ -53,16 +107,20 @@ export class ScheduleModule {
         return null;
     }
 
-    // 다가오는 약속 가져오기
+    // 다가오는 약속 가져오기 (내일 이후)
     getUpcomingAppointments() {
         const today = this.getRpDate();
         today.setHours(0, 0, 0, 0);
+        
+        // Get tomorrow's date for comparison
+        const tomorrow = new Date(today);
+        tomorrow.setDate(tomorrow.getDate() + 1);
 
         return this.settings.schedule.appointments
             .filter(apt => {
                 if (apt.status !== 'active') return false;
                 const aptDate = new Date(apt.date);
-                return aptDate >= today;
+                return aptDate >= tomorrow;  // Only appointments from tomorrow onwards
             })
             .sort((a, b) => new Date(a.date) - new Date(b.date));
     }
@@ -185,8 +243,8 @@ export class ScheduleModule {
 
     // UI 렌더링
     render(container) {
-        const todayClasses = this.getTodayClasses();
-        const appointments = this.getUpcomingAppointments();
+        const todaySchedule = this.getTodaySchedule();
+        const upcomingAppointments = this.getUpcomingAppointments();
         const today = this.getRpDate();
         const dateStr = `${today.getMonth() + 1}/${today.getDate()}`;
         const dayStr = this.getTodayDay();
@@ -219,15 +277,15 @@ export class ScheduleModule {
                 </div>
 
                 <div class="sstssd-section">
-                    <div class="sstssd-section-title">🕐 오늘 수업</div>
-                    ${this.renderTodayClasses(todayClasses)}
+                    <div class="sstssd-section-title">📋 오늘의 일정</div>
+                    ${this.renderTodaySchedule(todaySchedule)}
                 </div>
 
                 <div class="sstssd-section">
-                    <div class="sstssd-section-title">📌 다가오는 약속</div>
-                    ${appointments.length > 0 
-                        ? appointments.slice(0, 3).map(apt => this.renderAppointment(apt)).join('')
-                        : '<div class="sstssd-empty">약속이 없습니다</div>'
+                    <div class="sstssd-section-title">📌 다가오는 일정</div>
+                    ${upcomingAppointments.length > 0 
+                        ? upcomingAppointments.slice(0, 3).map(apt => this.renderAppointment(apt)).join('')
+                        : '<div class="sstssd-empty">다가오는 일정이 없습니다</div>'
                     }
                     <button class="sstssd-btn sstssd-btn-add" data-action="add-appointment">+ 약속 추가</button>
                 </div>
@@ -242,7 +300,45 @@ export class ScheduleModule {
         }
     }
 
-    // 오늘 수업 렌더링
+    // 오늘 일정 렌더링 (수업 + 약속 통합)
+    renderTodaySchedule(scheduleItems) {
+        if (this.settings.schedule.mode === 'vacation' && scheduleItems.length === 0) {
+            return '<div class="sstssd-empty">🌴 방학 중 - 오늘 일정이 없습니다</div>';
+        }
+
+        if (scheduleItems.length === 0) {
+            return '<div class="sstssd-empty">오늘 일정이 없습니다</div>';
+        }
+
+        return scheduleItems.map(item => {
+            if (item.type === 'class') {
+                return `
+                    <div class="sstssd-today-item class">
+                        <div class="sstssd-today-time">${item.startTime}~${item.endTime}</div>
+                        <div class="sstssd-today-title">${item.icon} ${this.escapeHtml(item.title)}</div>
+                        ${item.location ? `<div class="sstssd-today-location">📍 ${this.escapeHtml(item.location)}</div>` : ''}
+                    </div>
+                `;
+            } else {
+                // appointment
+                const apt = item.appointmentData;
+                return `
+                    <div class="sstssd-today-item appointment" data-id="${apt.id}">
+                        <div class="sstssd-today-time">${item.startTime !== '00:00' ? item.startTime : '시간 미정'}</div>
+                        <div class="sstssd-today-title">${item.icon} ${this.escapeHtml(item.title)}</div>
+                        ${item.location ? `<div class="sstssd-today-location">📍 ${this.escapeHtml(item.location)}</div>` : ''}
+                        ${item.with ? `<div class="sstssd-today-with">👥 ${this.escapeHtml(item.with)}</div>` : ''}
+                        <div class="sstssd-appointment-actions">
+                            <button class="sstssd-btn sstssd-btn-sm sstssd-btn-postpone" data-id="${apt.id}">미루기</button>
+                            <button class="sstssd-btn sstssd-btn-sm sstssd-btn-cancel" data-id="${apt.id}">취소</button>
+                        </div>
+                    </div>
+                `;
+            }
+        }).join('');
+    }
+
+    // 오늘 수업 렌더링 (deprecated, kept for compatibility)
     renderTodayClasses(classes) {
         if (this.settings.schedule.mode === 'vacation') {
             return '<div class="sstssd-empty">🌴 방학 중</div>';
@@ -297,7 +393,7 @@ export class ScheduleModule {
             addAptBtn.addEventListener('click', () => this.showAddAppointmentModal());
         }
 
-        // 약속 미루기 버튼
+        // 약속 미루기 버튼 (both today and upcoming sections)
         container.querySelectorAll('.sstssd-btn-postpone').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 e.stopPropagation();
@@ -306,7 +402,7 @@ export class ScheduleModule {
             });
         });
 
-        // 약속 취소 버튼
+        // 약속 취소 버튼 (both today and upcoming sections)
         container.querySelectorAll('.sstssd-btn-cancel').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 e.stopPropagation();
@@ -318,9 +414,13 @@ export class ScheduleModule {
             });
         });
 
-        // 약속 항목 클릭 (편집)
-        container.querySelectorAll('.sstssd-appointment').forEach(apt => {
-            apt.addEventListener('click', () => {
+        // 약속 항목 클릭 (편집) - both in today's schedule and upcoming appointments
+        container.querySelectorAll('.sstssd-today-item.appointment, .sstssd-appointment').forEach(apt => {
+            apt.addEventListener('click', (e) => {
+                // Ignore clicks on buttons
+                if (e.target.tagName === 'BUTTON') {
+                    return;
+                }
                 const id = parseInt(apt.dataset.id);
                 this.showEditAppointmentModal(id);
             });
