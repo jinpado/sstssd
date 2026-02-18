@@ -989,7 +989,7 @@ export class BalanceModule {
                         <label>운영비 경고 (원):</label>
                         <input type="number" class="sstssd-input sstssd-input-sm" 
                                value="${this.settings.balance.shopMode.warningThreshold}" 
-                               data-action="update-warning-threshold">
+                               data-action="update-warning-threshold" step="1">
                     </div>
                 </div>
                 ` : ''}
@@ -1224,7 +1224,7 @@ export class BalanceModule {
             <form id="sstssd-balance-form">
                 <div class="sstssd-form-group">
                     <label>금액 <span class="sstssd-required">*</span></label>
-                    <input type="number" name="amount" required class="sstssd-input" min="1" step="1000">
+                    <input type="number" name="amount" required class="sstssd-input" min="1" step="1">
                 </div>
                 <div class="sstssd-form-group">
                     <label>목표 선택 <span class="sstssd-required">*</span></label>
@@ -1277,7 +1277,7 @@ export class BalanceModule {
                 </div>
                 <div class="sstssd-form-group">
                     <label>금액 <span class="sstssd-required">*</span></label>
-                    <input type="number" name="amount" required class="sstssd-input" min="1" step="1000">
+                    <input type="number" name="amount" required class="sstssd-input" min="1" step="1">
                 </div>
                 <div class="sstssd-form-actions">
                     <button type="submit" class="sstssd-btn sstssd-btn-primary">인출</button>
@@ -1320,7 +1320,7 @@ export class BalanceModule {
                 </div>
                 <div class="sstssd-form-group">
                     <label>목표 금액 (원) <span class="sstssd-required">*</span></label>
-                    <input type="number" name="targetAmount" required class="sstssd-input" min="1" step="10000">
+                    <input type="number" name="targetAmount" required class="sstssd-input" min="1" step="1">
                 </div>
                 <div class="sstssd-form-actions">
                     <button type="submit" class="sstssd-btn sstssd-btn-primary">추가</button>
@@ -1362,7 +1362,7 @@ export class BalanceModule {
                 </div>
                 <div class="sstssd-form-group">
                     <label>목표 금액 (원) <span class="sstssd-required">*</span></label>
-                    <input type="number" name="targetAmount" value="${goal.targetAmount}" required class="sstssd-input" min="1" step="10000">
+                    <input type="number" name="targetAmount" value="${goal.targetAmount}" required class="sstssd-input" min="1" step="1">
                 </div>
                 <div class="sstssd-form-actions">
                     <button type="submit" class="sstssd-btn sstssd-btn-primary">저장</button>
@@ -1399,7 +1399,7 @@ export class BalanceModule {
                 ${subItems.map((item, idx) => `
                 <div class="sstssd-subitem-row" data-index="${idx}">
                     <input type="text" value="${this.escapeHtml(item.name)}" class="sstssd-input sstssd-input-sm" placeholder="항목명">
-                    <input type="number" value="${item.amount}" class="sstssd-input sstssd-input-sm" placeholder="금액" min="0" step="10000">
+                    <input type="number" value="${item.amount}" class="sstssd-input sstssd-input-sm" placeholder="금액" min="0" step="1">
                     <button type="button" class="sstssd-btn sstssd-btn-xs sstssd-btn-delete" data-action="remove-subitem" data-index="${idx}">삭제</button>
                 </div>
                 `).join('')}
@@ -1420,7 +1420,7 @@ export class BalanceModule {
             div.dataset.index = ++this.idCounter;  // Use proper ID counter
             div.innerHTML = `
                 <input type="text" class="sstssd-input sstssd-input-sm" placeholder="항목명">
-                <input type="number" class="sstssd-input sstssd-input-sm" placeholder="금액" min="0" step="10000">
+                <input type="number" class="sstssd-input sstssd-input-sm" placeholder="금액" min="0" step="1">
                 <button type="button" class="sstssd-btn sstssd-btn-xs sstssd-btn-delete" data-action="remove-subitem">삭제</button>
             `;
             listEl.appendChild(div);
@@ -1493,13 +1493,13 @@ export class BalanceModule {
                 </div>
                 <div class="sstssd-form-group" id="fixed-amount-group">
                     <label>금액 (원) <span class="sstssd-required">*</span></label>
-                    <input type="number" name="fixedAmount" class="sstssd-input" min="1" step="10000">
+                    <input type="number" name="fixedAmount" class="sstssd-input" min="1" step="1">
                 </div>
                 <div class="sstssd-form-group" id="range-amount-group" style="display: none;">
                     <label>최소 금액 (원) <span class="sstssd-required">*</span></label>
-                    <input type="number" name="minAmount" class="sstssd-input" min="1" step="10000">
+                    <input type="number" name="minAmount" class="sstssd-input" min="1" step="1">
                     <label>최대 금액 (원) <span class="sstssd-required">*</span></label>
-                    <input type="number" name="maxAmount" class="sstssd-input" min="1" step="10000">
+                    <input type="number" name="maxAmount" class="sstssd-input" min="1" step="1">
                 </div>
                 <div class="sstssd-form-group">
                     <label>입금일 (매월) <span class="sstssd-required">*</span></label>
@@ -1563,7 +1563,7 @@ export class BalanceModule {
                 </div>
                 <div class="sstssd-form-group">
                     <label>금액 (원) <span class="sstssd-required">*</span></label>
-                    <input type="number" name="amount" required class="sstssd-input" min="1" step="1000">
+                    <input type="number" name="amount" required class="sstssd-input" min="1" step="1">
                 </div>
                 <div class="sstssd-form-group">
                     <label>납부일 (매월) <span class="sstssd-required">*</span></label>
@@ -1626,7 +1626,7 @@ export class BalanceModule {
                 </div>
                 <div class="sstssd-form-group">
                     <label>금액 (원) <span class="sstssd-required">*</span></label>
-                    <input type="number" name="amount" required class="sstssd-input" min="1" step="1000">
+                    <input type="number" name="amount" required class="sstssd-input" min="1" step="1">
                 </div>
                 <div class="sstssd-form-group">
                     <label>메모</label>
@@ -1705,7 +1705,7 @@ export class BalanceModule {
                 </div>
                 <div class="sstssd-form-group">
                     <label>초기 운영비 (원)</label>
-                    <input type="number" name="initialFund" value="0" class="sstssd-input" min="0" step="10000">
+                    <input type="number" name="initialFund" value="0" class="sstssd-input" min="0" step="1">
                     <small>생활비에서 차감되어 운영비로 이동합니다</small>
                 </div>
                 <div class="sstssd-form-actions">
@@ -1751,7 +1751,7 @@ export class BalanceModule {
             <form id="sstssd-balance-form">
                 <div class="sstssd-form-group">
                     <label>금액 (원) <span class="sstssd-required">*</span></label>
-                    <input type="number" name="amount" required class="sstssd-input" min="1" step="10000">
+                    <input type="number" name="amount" required class="sstssd-input" min="1" step="1">
                     <small>생활비: ${this.formatCurrency(this.settings.balance.living)}</small>
                 </div>
                 <div class="sstssd-form-actions">
@@ -1784,7 +1784,7 @@ export class BalanceModule {
             <form id="sstssd-balance-form">
                 <div class="sstssd-form-group">
                     <label>금액 (원) <span class="sstssd-required">*</span></label>
-                    <input type="number" name="amount" required class="sstssd-input" min="1" step="10000">
+                    <input type="number" name="amount" required class="sstssd-input" min="1" step="1">
                     <small>운영비: ${this.formatCurrency(this.settings.balance.shopMode.operatingFund)}</small>
                 </div>
                 <div class="sstssd-form-group">
