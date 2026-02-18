@@ -1,5 +1,10 @@
 // 📱 인스타그램 모듈 (Instagram Module)
 export class InstagramModule {
+    // Constants
+    static DAYS_TO_MS = 24 * 60 * 60 * 1000;
+    static DM_EXPIRY_DAYS = 7;
+    static FOLLOWER_DECAY_THRESHOLD_DAYS = 7;
+    
     constructor(settings, saveCallback, getGlobalSettings, getRpDate, balanceModule, todoModule) {
         this.settings = settings;
         this.saveCallback = saveCallback;
@@ -149,9 +154,9 @@ export class InstagramModule {
         
         const today = this.getRpDate();
         const lastPost = new Date(this.settings.instagram.lastPostDate);
-        const daysSincePost = Math.floor((today - lastPost) / (1000 * 60 * 60 * 24));
+        const daysSincePost = Math.floor((today - lastPost) / InstagramModule.DAYS_TO_MS);
         
-        if (daysSincePost >= 7) {
+        if (daysSincePost >= InstagramModule.FOLLOWER_DECAY_THRESHOLD_DAYS) {
             const decay = Math.floor(10 + Math.random() * 41);  // 10 to 50
             this.settings.instagram.followers = Math.max(0, this.settings.instagram.followers - decay);
             this.settings.instagram.followerChange -= decay;
@@ -238,11 +243,10 @@ export class InstagramModule {
         
         // If accepted, add to todo module
         if (status === "accepted" && this.todoModule) {
-            const DAYS_TO_MS = 24 * 60 * 60 * 1000;
             const todoTitle = `${dm.message.substring(0, 30)}${dm.message.length > 30 ? '...' : ''} (${dm.from})`;
             this.todoModule.addItem({
                 title: todoTitle,
-                deadline: this.formatDate(new Date(this.getRpDate().getTime() + 7 * DAYS_TO_MS)), // +7 days
+                deadline: this.formatDate(new Date(this.getRpDate().getTime() + 7 * InstagramModule.DAYS_TO_MS)), // +7 days
                 estimatedTime: "",
                 memo: `Instagram DM 주문: ${dm.message}`
             });
@@ -271,9 +275,9 @@ export class InstagramModule {
         this.settings.instagram.dms.forEach(dm => {
             if (dm.status === "pending") {
                 const dmDate = new Date(dm.date);
-                const daysSince = Math.floor((today - dmDate) / (1000 * 60 * 60 * 24));
+                const daysSince = Math.floor((today - dmDate) / InstagramModule.DAYS_TO_MS);
                 
-                if (daysSince >= 7) {
+                if (daysSince >= InstagramModule.DM_EXPIRY_DAYS) {
                     dm.status = "expired";
                     updated = true;
                 }

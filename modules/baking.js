@@ -1,5 +1,13 @@
 // 🧁 베이킹 모듈 (Baking Module)
 export class BakingModule {
+    // Default ingredient ratios for fallback recipe generation
+    static DEFAULT_INGREDIENT_RATIOS = {
+        FLOUR_PER_UNIT: 10,     // 10g flour per unit
+        SUGAR_PER_UNIT: 5,      // 5g sugar per unit
+        BUTTER_PER_UNIT: 3,     // 3g butter per unit
+        EGG_PER_10_UNITS: 1     // 1 egg per 10 units
+    };
+    
     constructor(settings, saveCallback, getGlobalSettings, getRpDate, inventoryModule, instagramModule = null) {
         this.settings = settings;
         this.saveCallback = saveCallback;
@@ -499,11 +507,7 @@ ingredients:
     
     // 기본 계획 생성 (AI 실패 시)
     generateDefaultPlan(recipeName, yieldQty, yieldUnit) {
-        // Default ingredient ratios per unit
-        const FLOUR_PER_UNIT = 10;  // 10g flour per unit
-        const SUGAR_PER_UNIT = 5;   // 5g sugar per unit
-        const BUTTER_PER_UNIT = 3;  // 3g butter per unit
-        const EGG_PER_10_UNITS = 1; // 1 egg per 10 units
+        const ratios = BakingModule.DEFAULT_INGREDIENT_RATIOS;
         
         return {
             steps: [
@@ -514,9 +518,9 @@ ingredients:
                 { name: "마무리", estimatedTime: "15:45~16:00" }
             ],
             ingredients: [
-                { name: "밀가루", qty: Math.round(yieldQty * FLOUR_PER_UNIT), unit: "g" },
-                { name: "설탕", qty: Math.round(yieldQty * SUGAR_PER_UNIT), unit: "g" },
-                { name: "버터", qty: Math.round(yieldQty * BUTTER_PER_UNIT), unit: "g" },
+                { name: "밀가루", qty: Math.round(yieldQty * ratios.FLOUR_PER_UNIT), unit: "g" },
+                { name: "설탕", qty: Math.round(yieldQty * ratios.SUGAR_PER_UNIT), unit: "g" },
+                { name: "버터", qty: Math.round(yieldQty * ratios.BUTTER_PER_UNIT), unit: "g" },
                 { name: "달걀", qty: Math.max(1, Math.round(yieldQty / 10)), unit: "개" }
             ]
         };
