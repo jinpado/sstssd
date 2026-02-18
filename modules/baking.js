@@ -22,8 +22,14 @@ export class BakingModule {
         if (!this.settings.baking) {
             this.settings.baking = {
                 recipes: [],
-                bakingHistory: []
+                bakingHistory: [],
+                shoppingList: []
             };
+        }
+        
+        // Initialize shopping list if not exists
+        if (!this.settings.baking.shoppingList) {
+            this.settings.baking.shoppingList = [];
         }
         
         // Initialize ID counter from existing data
@@ -37,7 +43,11 @@ export class BakingModule {
         if (this.settings.baking) {
             const allIds = [
                 ...this.settings.baking.recipes.map(r => r.id || 0),
-                ...this.settings.baking.bakingHistory.map(h => h.id || 0)
+                ...this.settings.baking.bakingHistory.map(h => h.id || 0),
+                ...(this.settings.baking.shoppingList || []).flatMap(list => [
+                    list.id || 0,
+                    ...(list.items || []).map(item => item.id || 0)
+                ])
             ];
             
             if (allIds.length > 0) {
@@ -150,6 +160,202 @@ export class BakingModule {
         return { success: true };
     }
     
+    // ===== 구매 리스트 관리 =====
+    // 구매 리스트에 항목 추가
+    addToShoppingList(ingredientName, qty, unit, location = "온라인", estimatedPrice = 0, sources = []) {
+        // 같은 장소의 기존 리스트 찾기
+        let locationList = this.settings.baking.shoppingList.find(list => list.location === location);
+        
+        if (!locationList) {
+            // 새 장소 리스트 생성
+            locationList = {
+                id: ++this.idCounter,
+                location: location,
+                items: [],
+                totalPrice: 0,
+                status: "pending"
+            };
+            this.settings.baking.shoppingList.push(locationList);
+        }
+        
+        // 같은 재료가 이미 있는지 확인
+        const existingItem = locationList.items.find(item => item.name === ingredientName);
+        
+        if (existingItem) {
+            // 기존 항목에 수량 합산
+            existingItem.qty += qty;
+            existingItem.price = estimatedPrice || existingItem.price;
+            if (sources.length > 0) {
+                existingItem.sources = [...new Set([...existingItem.sources, ...sources])];
+            }
+        } else {
+            // 새 항목 추가
+            locationList.items.push({
+                id: ++this.idCounter,
+                name: ingredientName,
+                qty: qty,
+                unit: unit,
+                price: estimatedPrice,
+                sources: sources,
+                checked: false
+            });
+        }
+        
+        // 총액 재계산
+        locationList.totalPrice = locationList.items.reduce((sum, item) => sum + item.price, 0);
+        
+        this.saveCallback();
+    }
+    
+    // 구매 리스트 항목 수정
+    updateShoppingListItem(locationId, itemId, updates) {
+        const locationList = this.settings.baking.shoppingList.find(list => list.id === locationId);
+        if (!locationList) return false;
+        
+        const item = locationList.items.find(i => i.id === itemId);
+        if (!item) return false;
+        
+        Object.assign(item, updates);
+        
+        // 총액 재계산
+        locationList.totalPrice = locationList.items.reduce((sum, item) => sum + item.price, 0);
+        
+        this.saveCallback();
+        return true;
+    }
+    
+    // 구매 리스트 항목 삭제
+    deleteShoppingListItem(locationId, itemId) {
+        const locationList = this.settings.baking.shoppingList.find(list => list.id === locationId);
+        if (!locationList) return false;
+        
+        const index = locationList.items.findIndex(i => i.id === itemId);
+        if (index === -1) return false;
+        
+        locationList.items.splice(index, 1);
+        
+        // 항목이 없으면 리스트 자체 삭제
+        if (locationList.items.length === 0) {
+            const listIndex = this.settings.baking.shoppingList.findIndex(list => list.id === locationId);
+            this.settings.baking.shoppingList.splice(listIndex, 1);
+        } else {
+            // 총액 재계산
+            locationList.totalPrice = locationList.items.reduce((sum, item) => sum + item.price, 0);
+        }
+        
+        this.saveCallback();
+        return true;
+    }
+    
+    // 항목 장소 변경
+    moveShoppingListItem(fromLocationId, itemId, toLocation) {
+        const fromList = this.settings.baking.shoppingList.find(list => list.id === fromLocationId);
+        if (!fromList) return false;
+        
+        const itemIndex = fromList.items.findIndex(i => i.id === itemId);
+        if (itemIndex === -1) return false;
+        
+        const item = fromList.items[itemIndex];
+        fromList.items.splice(itemIndex, 1);
+        
+        // 원래 리스트 총액 재계산
+        fromList.totalPrice = fromList.items.reduce((sum, i) => sum + i.price, 0);
+        
+        // 원래 리스트가 비었으면 삭제
+        if (fromList.items.length === 0) {
+            const listIndex = this.settings.baking.shoppingList.findIndex(list => list.id === fromLocationId);
+            this.settings.baking.shoppingList.splice(listIndex, 1);
+        }
+        
+        // 새 장소에 추가
+        this.addToShoppingList(item.name, item.qty, item.unit, toLocation, item.price, item.sources);
+        
+        return true;
+    }
+    
+    // 장소별 구매 완료
+    completePurchase(locationId) {
+        const locationList = this.settings.baking.shoppingList.find(list => list.id === locationId);
+        if (!locationList) return { success: false, error: "리스트를 찾을 수 없습니다" };
+        
+        const location = locationList.location;
+        const totalPrice = locationList.totalPrice;
+        
+        // 1. 재고에 전부 추가
+        if (this.inventoryModule) {
+            locationList.items.forEach(item => {
+                const existingItem = this.inventoryModule.settings.inventory.items.find(i => 
+                    i.name === item.name && i.type === "ingredient"
+                );
+                
+                if (existingItem) {
+                    // 기존 재료 수량 증가
+                    this.inventoryModule.updateItem(existingItem.id, {
+                        qty: existingItem.qty + item.qty,
+                        reason: `구매 (${location})`,
+                        source: "purchase"
+                    });
+                } else {
+                    // 새 재료 추가
+                    this.inventoryModule.addItem({
+                        name: item.name,
+                        qty: item.qty,
+                        unit: item.unit,
+                        category: "기타",
+                        minStock: 0,
+                        type: "ingredient",
+                        reason: `구매 (${location})`,
+                        source: "purchase"
+                    });
+                }
+            });
+        }
+        
+        // 2. 잔고에서 차감 (개인 생활비)
+        if (this.settings.balance) {
+            this.settings.balance.living -= totalPrice;
+            
+            // 3. 거래 내역 추가
+            if (!this.settings.balance.transactions) {
+                this.settings.balance.transactions = [];
+            }
+            
+            this.settings.balance.transactions.unshift({
+                id: ++this.idCounter,
+                type: "expense",
+                category: "재료 구매",
+                description: `재료 구매 (${location})`,
+                amount: totalPrice,
+                date: this.formatDate(this.getRpDate()),
+                source: "personal"
+            });
+        }
+        
+        // 4. 구매 리스트에서 제거
+        const listIndex = this.settings.baking.shoppingList.findIndex(list => list.id === locationId);
+        this.settings.baking.shoppingList.splice(listIndex, 1);
+        
+        this.saveCallback();
+        return { success: true, totalPrice, itemCount: locationList.items.length };
+    }
+    
+    // 전체 구매 완료
+    completeAllPurchases() {
+        let totalPrice = 0;
+        let totalItems = 0;
+        const locations = [...this.settings.baking.shoppingList];
+        
+        locations.forEach(list => {
+            const result = this.completePurchase(list.id);
+            if (result.success) {
+                totalPrice += result.totalPrice;
+                totalItems += result.itemCount;
+            }
+        });
+        
+        return { success: true, totalPrice, totalItems };
+    }
+    
     // ===== 유틸리티 =====
     formatDate(date) {
         const d = new Date(date);
@@ -163,6 +369,10 @@ export class BakingModule {
         const div = document.createElement('div');
         div.textContent = text;
         return div.innerHTML;
+    }
+    
+    formatCurrency(amount) {
+        return amount.toLocaleString('ko-KR');
     }
     
     // ===== UI 렌더링 =====
@@ -199,6 +409,9 @@ export class BakingModule {
                     `}
                     <button class="sstssd-btn sstssd-btn-add" data-action="add-recipe">+ 레시피 추가</button>
                 </div>
+                
+                <!-- 구매 리스트 -->
+                ${this.renderShoppingList()}
                 
                 <!-- 베이킹 이력 -->
                 ${history.length > 0 ? `
@@ -250,6 +463,100 @@ export class BakingModule {
         `;
     }
     
+    // 구매 리스트 렌더링
+    renderShoppingList() {
+        const shoppingList = this.settings.baking.shoppingList || [];
+        
+        if (shoppingList.length === 0) {
+            return '';
+        }
+        
+        const totalPrice = shoppingList.reduce((sum, list) => sum + list.totalPrice, 0);
+        
+        return `
+            <div class="sstssd-section">
+                <div class="sstssd-section-title">🛒 구매 리스트</div>
+                ${shoppingList.map(locationList => this.renderShoppingListLocation(locationList)).join('')}
+                
+                <div class="sstssd-shopping-total">
+                    <span>총 예상:</span>
+                    <span class="sstssd-amount">${this.formatCurrency(totalPrice)}</span>
+                </div>
+                
+                <div class="sstssd-shopping-actions">
+                    <button class="sstssd-btn sstssd-btn-sm" data-action="add-shopping-item">+ 수동 추가</button>
+                    <button class="sstssd-btn sstssd-btn-primary" data-action="complete-all-purchases">전체 구매 완료</button>
+                </div>
+            </div>
+        `;
+    }
+    
+    // 장소별 구매 리스트 렌더링
+    renderShoppingListLocation(locationList) {
+        const locationIcon = locationList.location === "온라인" ? "🌐" : "🏪";
+        
+        return `
+            <div class="sstssd-shopping-location" data-location-id="${locationList.id}">
+                <div class="sstssd-shopping-location-header">
+                    ${locationIcon} ${this.escapeHtml(locationList.location)}
+                </div>
+                ${locationList.items.map(item => this.renderShoppingListItem(item, locationList.id, locationList.location)).join('')}
+                <div class="sstssd-shopping-subtotal">
+                    <span>소계:</span>
+                    <span class="sstssd-amount">${this.formatCurrency(locationList.totalPrice)}</span>
+                </div>
+                <button class="sstssd-btn sstssd-btn-sm sstssd-btn-primary" 
+                        data-action="complete-purchase" 
+                        data-location-id="${locationList.id}">
+                    ${locationList.location} 구매 완료
+                </button>
+            </div>
+        `;
+    }
+    
+    // 구매 리스트 항목 렌더링
+    renderShoppingListItem(item, locationId, currentLocation) {
+        const newLocation = currentLocation === "온라인" ? "시장/마트" : "온라인";
+        
+        return `
+            <div class="sstssd-shopping-item" data-item-id="${item.id}">
+                <div class="sstssd-shopping-item-main">
+                    <span class="sstssd-shopping-checkbox">⬜</span>
+                    <div class="sstssd-shopping-item-info">
+                        <div class="sstssd-shopping-item-name">
+                            ${this.escapeHtml(item.name)} ${item.qty}${item.unit}
+                        </div>
+                        ${item.sources.length > 0 ? `
+                            <div class="sstssd-shopping-item-sources">
+                                └ ${item.sources.join(' + ')}
+                            </div>
+                        ` : ''}
+                    </div>
+                    <span class="sstssd-shopping-price">${this.formatCurrency(item.price)}</span>
+                </div>
+                <div class="sstssd-shopping-item-actions">
+                    <button class="sstssd-btn sstssd-btn-xs" 
+                            data-action="edit-shopping-qty" 
+                            data-location-id="${locationId}" 
+                            data-item-id="${item.id}">수량 수정</button>
+                    <button class="sstssd-btn sstssd-btn-xs" 
+                            data-action="edit-shopping-price" 
+                            data-location-id="${locationId}" 
+                            data-item-id="${item.id}">가격 수정</button>
+                    <button class="sstssd-btn sstssd-btn-xs" 
+                            data-action="delete-shopping-item" 
+                            data-location-id="${locationId}" 
+                            data-item-id="${item.id}">삭제</button>
+                    <button class="sstssd-btn sstssd-btn-xs" 
+                            data-action="move-shopping-item" 
+                            data-location-id="${locationId}" 
+                            data-item-id="${item.id}"
+                            data-new-location="${newLocation}">장소 변경 →</button>
+                </div>
+            </div>
+        `;
+    }
+    
     // ===== 이벤트 리스너 =====
     attachEventListeners(container) {
         // 레시피 추가 버튼
@@ -290,6 +597,114 @@ export class BakingModule {
                 }
             });
         });
+        
+        // 구매 리스트 - 장소별 구매 완료 버튼
+        const completePurchaseBtns = container.querySelectorAll('[data-action="complete-purchase"]');
+        completePurchaseBtns.forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const locationId = parseInt(btn.dataset.locationId);
+                if (confirm('이 장소의 구매를 완료하시겠습니까?')) {
+                    const result = this.completePurchase(locationId);
+                    if (result.success) {
+                        alert(`구매 완료! ${result.itemCount}개 항목, 총 ${this.formatCurrency(result.totalPrice)}원`);
+                        this.render(container);
+                        
+                        // 재고 모듈도 다시 렌더링
+                        const inventoryContainer = document.querySelector('.sstssd-module[data-module="inventory"]');
+                        if (inventoryContainer && this.inventoryModule) {
+                            this.inventoryModule.render(inventoryContainer);
+                        }
+                        
+                        // 잔고 모듈도 다시 렌더링
+                        const balanceContainer = document.querySelector('.sstssd-module[data-module="balance"]');
+                        if (balanceContainer && this.settings.balance) {
+                            // Trigger balance module re-render via event or direct call
+                            if (typeof window.sstsdUpdateSummary === 'function') {
+                                window.sstsdUpdateSummary();
+                            }
+                        }
+                    } else {
+                        alert('구매 실패: ' + result.error);
+                    }
+                }
+            });
+        });
+        
+        // 구매 리스트 - 전체 구매 완료 버튼
+        const completeAllBtn = container.querySelector('[data-action="complete-all-purchases"]');
+        if (completeAllBtn) {
+            completeAllBtn.addEventListener('click', () => {
+                if (confirm('전체 구매를 완료하시겠습니까?')) {
+                    const result = this.completeAllPurchases();
+                    if (result.success) {
+                        alert(`전체 구매 완료! ${result.totalItems}개 항목, 총 ${this.formatCurrency(result.totalPrice)}원`);
+                        this.render(container);
+                        
+                        // 재고 모듈도 다시 렌더링
+                        const inventoryContainer = document.querySelector('.sstssd-module[data-module="inventory"]');
+                        if (inventoryContainer && this.inventoryModule) {
+                            this.inventoryModule.render(inventoryContainer);
+                        }
+                    }
+                }
+            });
+        }
+        
+        // 구매 리스트 - 항목 삭제
+        const deleteShoppingBtns = container.querySelectorAll('[data-action="delete-shopping-item"]');
+        deleteShoppingBtns.forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const locationId = parseInt(btn.dataset.locationId);
+                const itemId = parseInt(btn.dataset.itemId);
+                if (confirm('항목을 삭제하시겠습니까?')) {
+                    this.deleteShoppingListItem(locationId, itemId);
+                    this.render(container);
+                }
+            });
+        });
+        
+        // 구매 리스트 - 장소 변경
+        const moveShoppingBtns = container.querySelectorAll('[data-action="move-shopping-item"]');
+        moveShoppingBtns.forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const locationId = parseInt(btn.dataset.locationId);
+                const itemId = parseInt(btn.dataset.itemId);
+                const newLocation = btn.dataset.newLocation;
+                this.moveShoppingListItem(locationId, itemId, newLocation);
+                this.render(container);
+            });
+        });
+        
+        // 구매 리스트 - 수량 수정
+        const editQtyBtns = container.querySelectorAll('[data-action="edit-shopping-qty"]');
+        editQtyBtns.forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const locationId = parseInt(btn.dataset.locationId);
+                const itemId = parseInt(btn.dataset.itemId);
+                this.showEditShoppingQtyModal(locationId, itemId, container);
+            });
+        });
+        
+        // 구매 리스트 - 가격 수정
+        const editPriceBtns = container.querySelectorAll('[data-action="edit-shopping-price"]');
+        editPriceBtns.forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const locationId = parseInt(btn.dataset.locationId);
+                const itemId = parseInt(btn.dataset.itemId);
+                this.showEditShoppingPriceModal(locationId, itemId, container);
+            });
+        });
+        
+        // 구매 리스트 - 수동 추가
+        const addShoppingBtn = container.querySelector('[data-action="add-shopping-item"]');
+        if (addShoppingBtn) {
+            addShoppingBtn.addEventListener('click', () => this.showAddShoppingItemModal(container));
+        }
     }
     
     // ===== 모달 =====
@@ -1020,6 +1435,174 @@ ingredients:
             }
         });
         
+        overlay.addEventListener('click', () => modal.remove());
+    }
+    
+    // 구매 리스트 - 수동 추가 모달
+    showAddShoppingItemModal(container) {
+        const modal = document.createElement('div');
+        modal.className = 'sstssd-modal';
+        modal.innerHTML = `
+            <div class="sstssd-modal-overlay"></div>
+            <div class="sstssd-modal-content">
+                <h3>🛒 구매 항목 추가</h3>
+                <form id="sstssd-add-shopping-form">
+                    <div class="sstssd-form-group">
+                        <label>재료명</label>
+                        <input type="text" name="name" class="sstssd-input" required>
+                    </div>
+                    <div class="sstssd-form-group">
+                        <label>수량</label>
+                        <input type="number" name="qty" class="sstssd-input" required>
+                    </div>
+                    <div class="sstssd-form-group">
+                        <label>단위</label>
+                        <input type="text" name="unit" class="sstssd-input" value="g" required>
+                    </div>
+                    <div class="sstssd-form-group">
+                        <label>가격 (원)</label>
+                        <input type="number" name="price" class="sstssd-input" value="0" step="1" required>
+                    </div>
+                    <div class="sstssd-form-group">
+                        <label>구매 장소</label>
+                        <select name="location" class="sstssd-input">
+                            <option value="온라인">온라인</option>
+                            <option value="시장/마트">시장/마트</option>
+                        </select>
+                    </div>
+                    <div class="sstssd-form-actions">
+                        <button type="button" class="sstssd-btn sstssd-btn-cancel">취소</button>
+                        <button type="submit" class="sstssd-btn sstssd-btn-primary">추가</button>
+                    </div>
+                </form>
+            </div>
+        `;
+        document.body.appendChild(modal);
+        
+        const form = modal.querySelector('#sstssd-add-shopping-form');
+        const cancelBtn = modal.querySelector('.sstssd-btn-cancel');
+        const overlay = modal.querySelector('.sstssd-modal-overlay');
+        
+        form.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const formData = new FormData(form);
+            
+            this.addToShoppingList(
+                formData.get('name'),
+                parseFloat(formData.get('qty')),
+                formData.get('unit'),
+                formData.get('location'),
+                parseInt(formData.get('price')),
+                []
+            );
+            
+            modal.remove();
+            this.render(container);
+        });
+        
+        cancelBtn.addEventListener('click', () => modal.remove());
+        overlay.addEventListener('click', () => modal.remove());
+    }
+    
+    // 구매 리스트 - 수량 수정 모달
+    showEditShoppingQtyModal(locationId, itemId, container) {
+        const locationList = this.settings.baking.shoppingList.find(list => list.id === locationId);
+        if (!locationList) return;
+        
+        const item = locationList.items.find(i => i.id === itemId);
+        if (!item) return;
+        
+        const modal = document.createElement('div');
+        modal.className = 'sstssd-modal';
+        modal.innerHTML = `
+            <div class="sstssd-modal-overlay"></div>
+            <div class="sstssd-modal-content">
+                <h3>수량 수정</h3>
+                <form id="sstssd-edit-qty-form">
+                    <div class="sstssd-form-group">
+                        <label>${this.escapeHtml(item.name)}</label>
+                    </div>
+                    <div class="sstssd-form-group">
+                        <label>수량</label>
+                        <input type="number" name="qty" class="sstssd-input" value="${item.qty}" required>
+                    </div>
+                    <div class="sstssd-form-actions">
+                        <button type="button" class="sstssd-btn sstssd-btn-cancel">취소</button>
+                        <button type="submit" class="sstssd-btn sstssd-btn-primary">저장</button>
+                    </div>
+                </form>
+            </div>
+        `;
+        document.body.appendChild(modal);
+        
+        const form = modal.querySelector('#sstssd-edit-qty-form');
+        const cancelBtn = modal.querySelector('.sstssd-btn-cancel');
+        const overlay = modal.querySelector('.sstssd-modal-overlay');
+        
+        form.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const formData = new FormData(form);
+            
+            this.updateShoppingListItem(locationId, itemId, {
+                qty: parseFloat(formData.get('qty'))
+            });
+            
+            modal.remove();
+            this.render(container);
+        });
+        
+        cancelBtn.addEventListener('click', () => modal.remove());
+        overlay.addEventListener('click', () => modal.remove());
+    }
+    
+    // 구매 리스트 - 가격 수정 모달
+    showEditShoppingPriceModal(locationId, itemId, container) {
+        const locationList = this.settings.baking.shoppingList.find(list => list.id === locationId);
+        if (!locationList) return;
+        
+        const item = locationList.items.find(i => i.id === itemId);
+        if (!item) return;
+        
+        const modal = document.createElement('div');
+        modal.className = 'sstssd-modal';
+        modal.innerHTML = `
+            <div class="sstssd-modal-overlay"></div>
+            <div class="sstssd-modal-content">
+                <h3>가격 수정</h3>
+                <form id="sstssd-edit-price-form">
+                    <div class="sstssd-form-group">
+                        <label>${this.escapeHtml(item.name)}</label>
+                    </div>
+                    <div class="sstssd-form-group">
+                        <label>가격 (원)</label>
+                        <input type="number" name="price" class="sstssd-input" value="${item.price}" step="1" required>
+                    </div>
+                    <div class="sstssd-form-actions">
+                        <button type="button" class="sstssd-btn sstssd-btn-cancel">취소</button>
+                        <button type="submit" class="sstssd-btn sstssd-btn-primary">저장</button>
+                    </div>
+                </form>
+            </div>
+        `;
+        document.body.appendChild(modal);
+        
+        const form = modal.querySelector('#sstssd-edit-price-form');
+        const cancelBtn = modal.querySelector('.sstssd-btn-cancel');
+        const overlay = modal.querySelector('.sstssd-modal-overlay');
+        
+        form.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const formData = new FormData(form);
+            
+            this.updateShoppingListItem(locationId, itemId, {
+                price: parseInt(formData.get('price'))
+            });
+            
+            modal.remove();
+            this.render(container);
+        });
+        
+        cancelBtn.addEventListener('click', () => modal.remove());
         overlay.addEventListener('click', () => modal.remove());
     }
 }
