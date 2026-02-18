@@ -1,9 +1,11 @@
 // 📝 할일 모듈 (Todo Module)
 export class TodoModule {
-    constructor(settings, saveCallback) {
+    constructor(settings, saveCallback, getGlobalSettings) {
         this.settings = settings;
         this.saveCallback = saveCallback;
+        this.getGlobalSettings = getGlobalSettings;
         this.idCounter = Date.now();
+        this.moduleName = 'todo';
         if (!this.settings.todo) {
             this.settings.todo = { items: [] };
         }
@@ -118,16 +120,26 @@ export class TodoModule {
         const { urgent, inProgress, completed } = this.categorizeItems();
         const urgentCount = urgent.length;
 
+        // Preserve accordion state
+        const contentEl = container.querySelector('.sstssd-module-content');
+        let isOpen = contentEl ? contentEl.classList.contains('sstssd-module-open') : false;
+        
+        // Check global settings if available and content element doesn't exist yet
+        if (!contentEl && this.getGlobalSettings) {
+            const globalSettings = this.getGlobalSettings();
+            isOpen = globalSettings.openModules.includes(this.moduleName);
+        }
+
         container.innerHTML = `
-            <div class="sstssd-module-header" data-module="todo">
+            <div class="sstssd-module-header" data-module="${this.moduleName}">
                 <div class="sstssd-module-title">
                     <span class="sstssd-module-icon">📝</span>
                     <span>할일</span>
                     ${urgentCount > 0 ? `<span class="sstssd-badge sstssd-badge-urgent">${urgentCount}⚠️</span>` : ''}
                 </div>
-                <button class="sstssd-module-toggle">▼</button>
+                <button class="sstssd-module-toggle">${isOpen ? '▲' : '▼'}</button>
             </div>
-            <div class="sstssd-module-content" data-module="todo">
+            <div class="sstssd-module-content ${isOpen ? 'sstssd-module-open' : ''}" data-module="${this.moduleName}">
                 ${urgent.length > 0 ? `
                     <div class="sstssd-section">
                         <div class="sstssd-section-title">⚠️ 마감임박</div>
@@ -158,6 +170,11 @@ export class TodoModule {
         `;
 
         this.attachEventListeners(container);
+        
+        // Update summary after rendering
+        if (typeof window.sstsdUpdateSummary === 'function') {
+            window.sstsdUpdateSummary();
+        }
     }
 
     // 할일 항목 렌더링
