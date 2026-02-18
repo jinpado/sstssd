@@ -2302,3 +2302,155 @@ textarea.sstssd-input {
     font-weight: 600;
     margin-left: 6px;
 }
+
+/* ===== Baking AI Styles ===== */
+/* AI Loading */
+.sstssd-baking-ai-loading {
+    text-align: center;
+    padding: 30px 20px;
+    color: #a78bfa;
+}
+
+.sstssd-baking-ai-loading h3 {
+    margin: 0 0 12px 0;
+    font-size: 18px;
+    color: #e0e0e0;
+}
+
+.sstssd-baking-ai-loading p {
+    margin: 0 0 20px 0;
+    color: #9ca3af;
+}
+
+.sstssd-loading-spinner {
+    font-size: 32px;
+    animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+}
+
+/* Baking Plan Display */
+.sstssd-plan-summary {
+    padding: 12px;
+    background: #1e1e3a;
+    border-radius: 8px;
+    margin-bottom: 16px;
+    border: 1px solid #2a2a4a;
+}
+
+.sstssd-plan-summary p {
+    margin: 0;
+    color: #e0e0e0;
+}
+
+.sstssd-plan-section {
+    margin-bottom: 16px;
+}
+
+.sstssd-plan-section h4 {
+    margin: 0 0 12px 0;
+    font-size: 14px;
+    color: #d1d5db;
+    font-weight: 600;
+}
+
+/* Steps List */
+.sstssd-steps-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.sstssd-step-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px;
+    background: #1e1e3a;
+    border-radius: 6px;
+    font-size: 13px;
+}
+
+.sstssd-step-num {
+    color: #a78bfa;
+    font-weight: 600;
+    min-width: 24px;
+}
+
+.sstssd-step-name {
+    flex: 1;
+    color: #e0e0e0;
+}
+
+.sstssd-step-time {
+    color: #9ca3af;
+    font-size: 12px;
+}
+
+/* Ingredients List */
+.sstssd-ingredients-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-bottom: 12px;
+}
+
+.sstssd-ingredient-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px;
+    background: #1e1e3a;
+    border-radius: 6px;
+    font-size: 13px;
+}
+
+.sstssd-ingredient-icon {
+    font-size: 14px;
+}
+
+.sstssd-ingredient-name {
+    flex: 1;
+    color: #e0e0e0;
+}
+
+.sstssd-ingredient-qty {
+    color: #d1d5db;
+    font-weight: 600;
+}
+
+.sstssd-ingredient-avail {
+    color: #9ca3af;
+    font-size: 12px;
+}
+
+/* Ingredient status colors */
+.sstssd-ingredient-ok {
+    border-left: 3px solid #4ade80;
+}
+
+.sstssd-ingredient-low {
+    border-left: 3px solid #fbbf24;
+}
+
+.sstssd-ingredient-none {
+    border-left: 3px solid #f87171;
+}
+
+/* Warning box */
+.sstssd-warning-box {
+    padding: 12px;
+    background: rgba(251, 191, 36, 0.1);
+    border: 1px solid #fbbf24;
+    border-radius: 6px;
+    margin-top: 8px;
+}
+
+.sstssd-warning-box p {
+    margin: 0 0 8px 0;
+    color: #fbbf24;
+    font-size: 13px;
+}
