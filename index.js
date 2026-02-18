@@ -998,7 +998,7 @@ function buildDashboardPrompt() {
                 const staffMember = shop.staff.find(st => st.id === todayShift.staffId);
                 if (staffMember) {
                     prompt += `\n오늘 운영: ${staffMember.name} (알바)\n`;
-                    prompt += `시아 부재 시: 판매와 포장만 가능, 베이킹 불가\n`;
+                    prompt += `사장 부재 시: 판매와 포장만 가능, 베이킹 불가\n`;
                     if (staffMember.skills) {
                         staffMember.skills.forEach(s => {
                             prompt += `- ${s.icon} ${s.name} ${'★'.repeat(s.stars)}${'☆'.repeat(3 - s.stars)}\n`;
@@ -1073,9 +1073,9 @@ async function init() {
                             role: 'system',
                             content: dashboardPrompt
                         });
-                    } else if (typeof promptData === 'string') {
-                        // If it's just a string, append to it
-                        promptData += dashboardPrompt;
+                    } else if (promptData.prompt !== undefined) {
+                        // If it has a prompt property, append to it
+                        promptData.prompt += dashboardPrompt;
                     }
                 }
             } catch (error) {
