@@ -490,9 +490,11 @@ ingredients:
                 // Updated regex to support decimal quantities
                 const ingMatches = ingredientsText.matchAll(/- name: "(.+?)"\s+qty: (\d+(?:\.\d+)?)\s+unit: "(.+?)"/g);
                 for (const ingMatch of ingMatches) {
+                    // Round to 2 decimal places to avoid precision issues
+                    const qty = Math.round(parseFloat(ingMatch[2]) * 100) / 100;
                     ingredients.push({
                         name: ingMatch[1],
-                        qty: parseFloat(ingMatch[2]),
+                        qty: qty,
                         unit: ingMatch[3]
                     });
                 }
@@ -521,7 +523,7 @@ ingredients:
                 { name: "밀가루", qty: Math.round(yieldQty * ratios.FLOUR_PER_UNIT), unit: "g" },
                 { name: "설탕", qty: Math.round(yieldQty * ratios.SUGAR_PER_UNIT), unit: "g" },
                 { name: "버터", qty: Math.round(yieldQty * ratios.BUTTER_PER_UNIT), unit: "g" },
-                { name: "달걀", qty: Math.max(1, Math.round(yieldQty / 10)), unit: "개" }
+                { name: "달걀", qty: Math.max(1, Math.round(yieldQty * ratios.EGG_PER_10_UNITS / 10)), unit: "개" }
             ]
         };
     }
