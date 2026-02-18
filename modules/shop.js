@@ -10,6 +10,10 @@ export class ShopModule {
         this.moduleName = 'shop';
         this.idCounter = Date.now();
         
+        // Constants
+        this.DEFAULT_OPERATOR = "시아"; // Default shop owner name
+        this.LOW_STOCK_THRESHOLD = 5; // Items with quantity <= this show warning
+        
         // Initialize shop data structure if not exists
         if (!this.settings.shop) {
             this.settings.shop = this.getDefaultShopData();
@@ -139,7 +143,7 @@ export class ShopModule {
             totalPrice: data.unitPrice * data.quantity,
             date: this.formatDate(now),
             time: this.formatTime(now),
-            operator: data.operator || "시아"
+            operator: data.operator || this.getDefaultOperator()
         };
         
         this.settings.shop.sales.push(newSale);
@@ -395,8 +399,22 @@ export class ShopModule {
             .filter(item => item.type === "product")
             .map(item => ({
                 ...item,
-                lowStock: item.qty <= 5
+                lowStock: item.qty <= this.LOW_STOCK_THRESHOLD
             }));
+    }
+    
+    // Get default operator (owner or staff if on shift)
+    getDefaultOperator() {
+        const today = this.formatDate(this.getRpDate());
+        const todayShift = this.settings.shop.shifts.find(s => 
+            s.date === today && s.status === "scheduled"
+        );
+        
+        if (todayShift) {
+            return todayShift.staffName;
+        }
+        
+        return this.DEFAULT_OPERATOR;
     }
     
     // ===== 유틸리티 =====
@@ -1385,7 +1403,7 @@ export class ShopModule {
         if (!summary) return;
         
         const saleInventory = this.getSaleInventory();
-        const todayOperator = "시아"; // Could be dynamic based on shifts
+        const todayOperator = this.getDefaultOperator();
         
         const modal = document.createElement('div');
         modal.className = 'sstssd-modal';

@@ -741,11 +741,12 @@ function initObserver() {
                                 console.log(`SSTSSD: Auto-detected sale: ${menuName} ${quantity}개 @${unitPrice}원`);
                                 const chatData = getCurrentChatData();
                                 if (chatData?.balance?.shopMode?.enabled) {
+                                    // Use shopModule's default operator logic (will check shifts or use owner)
                                     shopModule.addSale({
                                         menuName: menuName,
                                         quantity: quantity,
-                                        unitPrice: unitPrice,
-                                        operator: "AI 자동" // Could be determined from context
+                                        unitPrice: unitPrice
+                                        // operator: omitted to use default from getDefaultOperator()
                                     });
                                     renderAllModules();
                                 }
