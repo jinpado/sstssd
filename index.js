@@ -618,8 +618,15 @@ function initModules() {
             inventoryModule.render(inventoryContainer);
         }
         
-        // Initialize Baking module with chat-specific data, global settings getter, and inventory module
-        bakingModule = new BakingModule(chatData, saveSettings, getGlobalSettings, getRpDate, inventoryModule);
+        // Initialize Instagram module with chat-specific data, global settings getter, balance and todo modules
+        instagramModule = new InstagramModule(chatData, saveSettings, getGlobalSettings, getRpDate, balanceModule, todoModule);
+        const instagramContainer = document.querySelector('.sstssd-module[data-module="instagram"]');
+        if (instagramContainer) {
+            instagramModule.render(instagramContainer);
+        }
+        
+        // Initialize Baking module with chat-specific data, global settings getter, inventory and instagram modules
+        bakingModule = new BakingModule(chatData, saveSettings, getGlobalSettings, getRpDate, inventoryModule, instagramModule);
         const bakingContainer = document.querySelector('.sstssd-module[data-module="baking"]');
         if (bakingContainer) {
             bakingModule.render(bakingContainer);
@@ -630,13 +637,6 @@ function initModules() {
         const shopContainer = document.querySelector('.sstssd-module[data-module="shop"]');
         if (shopContainer) {
             shopModule.render(shopContainer);
-        }
-        
-        // Initialize Instagram module with chat-specific data, global settings getter, balance and todo modules
-        instagramModule = new InstagramModule(chatData, saveSettings, getGlobalSettings, getRpDate, balanceModule, todoModule);
-        const instagramContainer = document.querySelector('.sstssd-module[data-module="instagram"]');
-        if (instagramContainer) {
-            instagramModule.render(instagramContainer);
         }
 
         // Set initial module states from global settings

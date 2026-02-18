@@ -1,11 +1,12 @@
 // 🧁 베이킹 모듈 (Baking Module)
 export class BakingModule {
-    constructor(settings, saveCallback, getGlobalSettings, getRpDate, inventoryModule) {
+    constructor(settings, saveCallback, getGlobalSettings, getRpDate, inventoryModule, instagramModule = null) {
         this.settings = settings;
         this.saveCallback = saveCallback;
         this.getGlobalSettings = getGlobalSettings;
         this.getRpDate = getRpDate;
         this.inventoryModule = inventoryModule;
+        this.instagramModule = instagramModule;
         this.moduleName = 'baking';
         this.idCounter = Date.now();
         
@@ -493,6 +494,18 @@ export class BakingModule {
             const result = this.performBaking(recipeId, multiplier);
             
             if (result.success) {
+                const finalQty = recipe.yieldQty * multiplier;
+                const recipeName = recipe.name;
+                
+                modal.remove();
+                
+                // Show Instagram posting option if instagram module is available
+                if (this.instagramModule) {
+                    this.showInstagramPostOption(recipeName, finalQty, recipe.yieldUnit);
+                } else {
+                    alert(`${recipeName} ×${finalQty}${recipe.yieldUnit} 제작 완료!`);
+                }
+                
                 // 모든 관련 모듈 다시 렌더링
                 const bakingContainer = document.querySelector('.sstssd-module[data-module="baking"]');
                 const inventoryContainer = document.querySelector('.sstssd-module[data-module="inventory"]');
@@ -504,15 +517,49 @@ export class BakingModule {
                 if (inventoryContainer && this.inventoryModule) {
                     this.inventoryModule.render(inventoryContainer);
                 }
-                
-                alert(`${recipe.name} ×${recipe.yieldQty * multiplier}${recipe.yieldUnit} 제작 완료!`);
-                modal.remove();
             } else {
                 alert('베이킹 실패: ' + result.error);
             }
         });
         
         cancelBtn.addEventListener('click', () => modal.remove());
+        overlay.addEventListener('click', () => modal.remove());
+    }
+    
+    // Instagram 게시 옵션 모달
+    showInstagramPostOption(recipeName, qty, unit) {
+        const modal = document.createElement('div');
+        modal.className = 'sstssd-modal';
+        modal.innerHTML = `
+            <div class="sstssd-modal-overlay"></div>
+            <div class="sstssd-modal-content">
+                <h3>🧁 베이킹 완료!</h3>
+                <p>${this.escapeHtml(recipeName)} ×${qty}${unit} 제작 완료!</p>
+                <p>인스타그램에 올리시겠습니까?</p>
+                <div class="sstssd-form-actions">
+                    <button type="button" class="sstssd-btn sstssd-btn-cancel" id="skip-post">안 올림</button>
+                    <button type="button" class="sstssd-btn sstssd-btn-primary" id="post-to-insta">올리기</button>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(modal);
+        
+        const skipBtn = modal.querySelector('#skip-post');
+        const postBtn = modal.querySelector('#post-to-insta');
+        const overlay = modal.querySelector('.sstssd-modal-overlay');
+        
+        skipBtn.addEventListener('click', () => {
+            modal.remove();
+        });
+        
+        postBtn.addEventListener('click', () => {
+            modal.remove();
+            // Open Instagram post modal with pre-filled baking info
+            if (this.instagramModule) {
+                this.instagramModule.showAddPostModal(`${recipeName} ${qty}${unit}`);
+            }
+        });
+        
         overlay.addEventListener('click', () => modal.remove());
     }
 }
