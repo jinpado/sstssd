@@ -4,6 +4,7 @@ export class TodoModule {
         this.settings = settings;
         this.saveCallback = saveCallback;
         this.idCounter = Date.now();
+        this.moduleName = 'todo';
         if (!this.settings.todo) {
             this.settings.todo = { items: [] };
         }
@@ -125,11 +126,11 @@ export class TodoModule {
         // Check global settings if available
         if (!contentEl && this.settings.getGlobalSettings) {
             const globalSettings = this.settings.getGlobalSettings();
-            isOpen = globalSettings.openModules.includes('todo');
+            isOpen = globalSettings.openModules.includes(this.moduleName);
         }
 
         container.innerHTML = `
-            <div class="sstssd-module-header" data-module="todo">
+            <div class="sstssd-module-header" data-module="${this.moduleName}">
                 <div class="sstssd-module-title">
                     <span class="sstssd-module-icon">📝</span>
                     <span>할일</span>
@@ -137,7 +138,7 @@ export class TodoModule {
                 </div>
                 <button class="sstssd-module-toggle">${isOpen ? '▲' : '▼'}</button>
             </div>
-            <div class="sstssd-module-content ${isOpen ? 'sstssd-module-open' : ''}" data-module="todo">
+            <div class="sstssd-module-content ${isOpen ? 'sstssd-module-open' : ''}" data-module="${this.moduleName}">
                 ${urgent.length > 0 ? `
                     <div class="sstssd-section">
                         <div class="sstssd-section-title">⚠️ 마감임박</div>

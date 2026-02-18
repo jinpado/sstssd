@@ -49,7 +49,7 @@ function initSettings() {
         // Restructure to new format
         extension_settings[MODULE_NAME] = {
             chats: {
-                '_migrated_default': oldData
+                'legacy_pre_chat_isolation': oldData
             },
             globalSettings: {
                 panelOpen: panelOpen,
