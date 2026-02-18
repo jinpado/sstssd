@@ -1,0 +1,12 @@
+{
+  "display_name": "Side Dashboard",
+  "loading_order": 100,
+  "requires": [],
+  "optional": [],
+  "js": "index.js",
+  "css": "style.css",
+  "author": "jinpado",
+  "version": "0.1.0",
+  "homePage": "https://github.com/jinpado/sstssd",
+  "auto_update": true
+}
