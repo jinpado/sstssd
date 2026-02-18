@@ -9,6 +9,7 @@ import { BalanceModule } from './modules/balance.js';
 import { InventoryModule } from './modules/inventory.js';
 import { BakingModule } from './modules/baking.js';
 import { ShopModule } from './modules/shop.js';
+import { InstagramModule } from './modules/instagram.js';
 
 const MODULE_NAME = 'sstssd';
 
@@ -25,6 +26,7 @@ let balanceModule = null;
 let inventoryModule = null;
 let bakingModule = null;
 let shopModule = null;
+let instagramModule = null;
 let observer = null;
 let currentChatId = null;
 
@@ -35,7 +37,7 @@ function initSettings() {
             chats: {},  // Chat-specific data
             globalSettings: {
                 panelOpen: true,
-                openModules: ['todo', 'schedule', 'balance', 'inventory', 'baking', 'shop']
+                openModules: ['todo', 'schedule', 'balance', 'inventory', 'baking', 'shop', 'instagram']
             }
         };
     }
@@ -57,7 +59,7 @@ function initSettings() {
         // Preserve global settings if they exist
         const panelOpen = extension_settings[MODULE_NAME].panelOpen !== undefined ? 
             extension_settings[MODULE_NAME].panelOpen : true;
-        const openModules = extension_settings[MODULE_NAME].openModules || ['todo', 'schedule', 'balance', 'inventory', 'baking', 'shop'];
+        const openModules = extension_settings[MODULE_NAME].openModules || ['todo', 'schedule', 'balance', 'inventory', 'baking', 'shop', 'instagram'];
         
         // Restructure to new format
         extension_settings[MODULE_NAME] = {
@@ -81,7 +83,7 @@ function initSettings() {
     if (!extension_settings[MODULE_NAME].globalSettings) {
         extension_settings[MODULE_NAME].globalSettings = {
             panelOpen: true,
-            openModules: ['todo', 'schedule', 'balance', 'inventory', 'baking', 'shop']
+            openModules: ['todo', 'schedule', 'balance', 'inventory', 'baking', 'shop', 'instagram']
         };
     }
     
@@ -116,7 +118,8 @@ function getCurrentChatData() {
             balance: null,  // Will be initialized by BalanceModule
             inventory: null,  // Will be initialized by InventoryModule
             baking: null,  // Will be initialized by BakingModule
-            shop: null  // Will be initialized by ShopModule
+            shop: null,  // Will be initialized by ShopModule
+            instagram: null  // Will be initialized by InstagramModule
         };
     }
     
@@ -203,6 +206,9 @@ function createPanel() {
             <div class="sstssd-module" data-module="shop">
                 <!-- Shop module content -->
             </div>
+            <div class="sstssd-module" data-module="instagram">
+                <!-- Instagram module content -->
+            </div>
         </div>
     `;
 
@@ -283,6 +289,17 @@ function updateSummary() {
         const nextApt = upcomingAppointments[0];
         const aptDate = new Date(nextApt.date);
         summaryParts.push(`📌 다음 약속: ${aptDate.getMonth() + 1}/${aptDate.getDate()} ${nextApt.title}`);
+    }
+    
+    // Add Instagram info
+    if (instagramModule && chatData && chatData.instagram) {
+        const followers = chatData.instagram.followers;
+        const pendingDMs = instagramModule.getPendingDMCount();
+        if (pendingDMs > 0) {
+            summaryParts.push(`📱 팔로워: ${followers.toLocaleString('ko-KR')} | 📬 DM: ${pendingDMs}건`);
+        } else {
+            summaryParts.push(`📱 팔로워: ${followers.toLocaleString('ko-KR')}`);
+        }
     }
 
     if (summaryParts.length === 0) {
@@ -390,6 +407,7 @@ function showNoChatMessage() {
     const inventoryContainer = document.querySelector('.sstssd-module[data-module="inventory"]');
     const bakingContainer = document.querySelector('.sstssd-module[data-module="baking"]');
     const shopContainer = document.querySelector('.sstssd-module[data-module="shop"]');
+    const instagramContainer = document.querySelector('.sstssd-module[data-module="instagram"]');
     
     if (balanceContainer) {
         balanceContainer.innerHTML = `
@@ -476,6 +494,21 @@ function showNoChatMessage() {
                 <button class="sstssd-module-toggle">▼</button>
             </div>
             <div class="sstssd-module-content" data-module="shop">
+                <div class="sstssd-empty">채팅방을 선택해주세요</div>
+            </div>
+        `;
+    }
+    
+    if (instagramContainer) {
+        instagramContainer.innerHTML = `
+            <div class="sstssd-module-header" data-module="instagram">
+                <div class="sstssd-module-title">
+                    <span class="sstssd-module-icon">📱</span>
+                    <span class="sstssd-insta-header">Instagram</span>
+                </div>
+                <button class="sstssd-module-toggle">▼</button>
+            </div>
+            <div class="sstssd-module-content" data-module="instagram">
                 <div class="sstssd-empty">채팅방을 선택해주세요</div>
             </div>
         `;
@@ -585,8 +618,15 @@ function initModules() {
             inventoryModule.render(inventoryContainer);
         }
         
-        // Initialize Baking module with chat-specific data, global settings getter, and inventory module
-        bakingModule = new BakingModule(chatData, saveSettings, getGlobalSettings, getRpDate, inventoryModule);
+        // Initialize Instagram module with chat-specific data, global settings getter, balance and todo modules
+        instagramModule = new InstagramModule(chatData, saveSettings, getGlobalSettings, getRpDate, balanceModule, todoModule);
+        const instagramContainer = document.querySelector('.sstssd-module[data-module="instagram"]');
+        if (instagramContainer) {
+            instagramModule.render(instagramContainer);
+        }
+        
+        // Initialize Baking module with chat-specific data, global settings getter, inventory and instagram modules
+        bakingModule = new BakingModule(chatData, saveSettings, getGlobalSettings, getRpDate, inventoryModule, instagramModule);
         const bakingContainer = document.querySelector('.sstssd-module[data-module="baking"]');
         if (bakingContainer) {
             bakingModule.render(bakingContainer);
