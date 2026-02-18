@@ -240,66 +240,54 @@ function updateSummary() {
     if (!summaryEl) return;
 
     const chatData = getCurrentChatData();
-    const urgentCount = todoModule ? todoModule.getUrgentCount() : 0;
-    const nextClass = scheduleModule ? scheduleModule.getNextClass() : null;
-    const upcomingAppointments = scheduleModule ? scheduleModule.getUpcomingAppointments() : [];
-
     let summaryParts = [];
 
-    // 📅 롤플 날짜: 항상 표시
-    if (chatData) {
-        const editDateButton = `<button class="sstssd-btn-edit-date" id="sstssd-edit-date-btn" title="날짜 ${chatData.rpDate ? '수정' : '설정'}">[${chatData.rpDate ? '수정' : '설정'}]</button>`;
-        if (chatData.rpDate) {
-            summaryParts.push(`📅 롤플 날짜: ${chatData.rpDate} ${editDateButton}`);
-        } else {
-            summaryParts.push(`📅 롤플 날짜: 미설정 ${editDateButton}`);
-        }
-    }
+    // 1. 📅 롤플 날짜 (항상 표시)
+    const rpDate = getRpDate();
+    const dateStr = `${rpDate.getFullYear()}-${String(rpDate.getMonth()+1).padStart(2,'0')}-${String(rpDate.getDate()).padStart(2,'0')}`;
+    summaryParts.push(`📅 ${dateStr} <button id="sstssd-edit-date-btn" class="sstssd-edit-date-btn" title="날짜 수정">✏️</button>`);
 
-    // 💳 Balance info: 항상 표시
+    // 2. 💳 개인 자산 (항상 표시)
     if (balanceModule && chatData && chatData.balance) {
-        const shopEnabled = chatData.balance.shopMode?.enabled;
-        if (shopEnabled) {
-            const personalTotal = chatData.balance.living + balanceModule.getTotalSavings();
-            summaryParts.push(`💳 개인: ${formatCurrency(personalTotal)}`);
-            
-            // 🏪 가게: 가게 모드 ON일 때만 표시
-            const shopFund = chatData.balance.shopMode.operatingFund;
-            summaryParts.push(`🏪 가게: ${formatCurrency(shopFund)}`);
-        } else {
-            const totalAssets = balanceModule.getTotalAssets();
-            summaryParts.push(`💳 개인: ${formatCurrency(totalAssets)}`);
+        const personalTotal = chatData.balance.living + balanceModule.getTotalSavings();
+        summaryParts.push(`💳 개인: ${formatCurrency(personalTotal)}`);
+    }
+
+    // 3. 🏪 가게 자금 (가게 모드 ON일 때만)
+    if (balanceModule && chatData?.balance?.shopMode?.enabled) {
+        const shopFund = chatData.balance.shopMode.operatingFund;
+        summaryParts.push(`🏪 가게: ${formatCurrency(shopFund)}`);
+    }
+
+    // 4. 🎓 다음 수업 (학기 중 + 수업 있을 때)
+    if (scheduleModule) {
+        const nextClass = scheduleModule.getNextClass();
+        if (nextClass) {
+            summaryParts.push(`🎓 다음 수업: ${nextClass.startTime} ${nextClass.subject}`);
         }
     }
 
-    // 🎓 다음 수업: 학생 모드 ON + 수업 있을 때만 (if schedule module has semester mode)
-    if (nextClass && chatData?.schedule?.mode === 'semester') {
-        summaryParts.push(`🎓 다음 수업: ${nextClass.startTime} ${nextClass.subject}`);
-    }
-
-    // 📌 다음 약속: 약속 있을 때만
-    if (upcomingAppointments.length > 0) {
-        const nextApt = upcomingAppointments[0];
-        const aptDate = new Date(nextApt.date);
-        summaryParts.push(`📌 다음 약속: ${aptDate.getMonth() + 1}/${aptDate.getDate()} ${nextApt.title}`);
-    }
-    
-    // 🏪 영업: 가게 모드 ON일 때만 표시
-    if (chatData?.balance?.shopMode?.enabled && shopModule && chatData.shop) {
-        const shopName = chatData.balance.shopMode.shopName || "가게";
-        if (chatData.shop.isOpen) {
-            summaryParts.push(`🏪 영업: 🟢 OPEN`);
-        } else {
-            summaryParts.push(`🏪 영업: 🔴 CLOSED`);
+    // 5. 📌 다음 약속 (약속 있을 때)
+    if (scheduleModule) {
+        const upcomingAppointments = scheduleModule.getUpcomingAppointments();
+        if (upcomingAppointments && upcomingAppointments.length > 0) {
+            const next = upcomingAppointments[0];
+            summaryParts.push(`📌 다음 약속: ${next.date} ${next.title}`);
         }
     }
-    
-    // 📱 팔로워: 항상 표시
-    if (instagramModule && chatData && chatData.instagram) {
+
+    // 6. 🏪 영업 상태 (가게 모드 ON일 때만)
+    if (shopModule && chatData?.balance?.shopMode?.enabled && chatData.shop) {
+        const isOpen = chatData.shop.isOpen;
+        summaryParts.push(`🏪 영업: ${isOpen ? '🟢 OPEN' : '🔴 CLOSED'}`);
+    }
+
+    // 7. 📱 팔로워 (항상 표시)
+    if (instagramModule && chatData?.instagram) {
         const followers = chatData.instagram.followers;
-        const pendingDMs = instagramModule.getPendingDMCount();
-        if (pendingDMs > 0) {
-            summaryParts.push(`📱 팔로워: ${followers.toLocaleString('ko-KR')} | 📬 DM: ${pendingDMs}건`);
+        const change = chatData.instagram.followerChange || 0;
+        if (change > 0) {
+            summaryParts.push(`📱 팔로워: ${followers.toLocaleString('ko-KR')} (+${change})`);
         } else {
             summaryParts.push(`📱 팔로워: ${followers.toLocaleString('ko-KR')}`);
         }
@@ -309,9 +297,10 @@ function updateSummary() {
         summaryParts.push('오늘 일정이 없습니다');
     }
 
-    summaryEl.innerHTML = `<div class="sstssd-summary-text">${summaryParts.map(part => `<span class="sstssd-summary-item">${part}</span>`).join('')}</div>`;
+    // 세로 줄바꿈으로 표시
+    summaryEl.innerHTML = `<div class="sstssd-summary-text">${summaryParts.map(part => `<div class="sstssd-summary-item">${part}</div>`).join('')}</div>`;
     
-    // Attach event listener to date edit button
+    // Date edit button listener
     const editDateBtn = document.getElementById('sstssd-edit-date-btn');
     if (editDateBtn) {
         editDateBtn.addEventListener('click', (e) => {

@@ -87,15 +87,15 @@
 }
 
 .sstssd-summary-text {
-    font-size: 13px;
-    color: #9ca3af;
-    line-height: 1.5;
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    gap: 3px;
 }
 
 .sstssd-summary-item {
+    display: block;
+    font-size: 12px;
+    line-height: 1.5;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
