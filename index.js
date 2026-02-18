@@ -9,6 +9,10 @@ import { BalanceModule } from './modules/balance.js';
 
 const MODULE_NAME = 'sstssd';
 
+// Tag detection regex patterns
+const FIN_IN_REGEX = /<FIN_IN>(.+?)\|(\d+)<\/FIN_IN>/g;
+const FIN_OUT_REGEX = /<FIN_OUT>(.+?)\|(\d+)<\/FIN_OUT>/g;
+
 // Extension state
 let panelElement = null;
 let todoModule = null;
@@ -587,7 +591,7 @@ function initObserver() {
                         }
                         
                         // Parse FIN_IN tags (income)
-                        const finInMatches = text.matchAll(/<FIN_IN>(.+?)\|(\d+)<\/FIN_IN>/g);
+                        const finInMatches = text.matchAll(FIN_IN_REGEX);
                         for (const match of finInMatches) {
                             const description = match[1];
                             const amount = parseInt(match[2]);
@@ -608,7 +612,7 @@ function initObserver() {
                         }
                         
                         // Parse FIN_OUT tags (expense)
-                        const finOutMatches = text.matchAll(/<FIN_OUT>(.+?)\|(\d+)<\/FIN_OUT>/g);
+                        const finOutMatches = text.matchAll(FIN_OUT_REGEX);
                         for (const match of finOutMatches) {
                             const description = match[1];
                             const amount = parseInt(match[2]);

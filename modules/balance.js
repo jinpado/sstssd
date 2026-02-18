@@ -5,7 +5,6 @@ export class BalanceModule {
         this.saveCallback = saveCallback;
         this.getGlobalSettings = getGlobalSettings;
         this.getRpDate = getRpDate;
-        this.idCounter = Date.now();
         this.moduleName = 'balance';
         
         // Initialize balance data structure if not exists
@@ -13,8 +12,33 @@ export class BalanceModule {
             this.settings.balance = this.getDefaultBalanceData();
         }
         
+        // Initialize ID counter from existing data
+        this.idCounter = this.getMaxId();
+        
         // Check for recurring income/expenses on date change
         this.processRecurringTransactions();
+    }
+
+    // Get maximum ID from existing data
+    getMaxId() {
+        let maxId = Date.now();
+        
+        if (this.settings.balance) {
+            const allIds = [
+                ...this.settings.balance.goals.map(g => g.id || 0),
+                ...this.settings.balance.recurringIncome.map(i => i.id || 0),
+                ...this.settings.balance.recurringExpense.map(e => e.id || 0),
+                ...this.settings.balance.transactions.map(t => t.id || 0),
+                ...(this.settings.balance.shopMode.unpaidWages || []).map(w => w.id || 0),
+                ...(this.settings.balance.shopMode.shopRecurringExpense || []).map(e => e.id || 0)
+            ];
+            
+            if (allIds.length > 0) {
+                maxId = Math.max(maxId, ...allIds);
+            }
+        }
+        
+        return maxId;
     }
 
     // Default data structure
@@ -161,6 +185,7 @@ export class BalanceModule {
             minAmount: data.type === "range" ? data.minAmount : null,
             maxAmount: data.type === "range" ? data.maxAmount : null,
             dayOfMonth: data.dayOfMonth,
+            source: data.source || "personal",  // "personal" or "shop"
             enabled: true
         };
         
@@ -323,9 +348,12 @@ export class BalanceModule {
                     income.fixedAmount : 
                     this.randomInRange(income.minAmount, income.maxAmount);
                 
+                // Use source from income settings, default to personal
+                const source = income.source || "personal";
+                
                 this.addTransaction({
                     type: "income",
-                    source: this.settings.balance.shopMode.enabled ? "shop" : "personal",
+                    source: source,
                     category: income.name,
                     description: income.name,
                     amount: amount,
@@ -1168,13 +1196,16 @@ export class BalanceModule {
             transactions.map(t => this.renderTransaction(t)).join('');
         
         // Re-attach delete listeners
+        const moduleContainer = document.querySelector('.sstssd-module[data-module="balance"]');
         listEl.querySelectorAll('[data-action="delete-transaction"]').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 e.stopPropagation();
                 const id = parseInt(btn.dataset.id);
                 if (confirm('이 거래를 삭제하시겠습니까?')) {
                     this.deleteTransaction(id);
-                    this.render(container.parentElement);
+                    if (moduleContainer) {
+                        this.render(moduleContainer);
+                    }
                 }
             });
         });
@@ -1386,7 +1417,7 @@ export class BalanceModule {
         modal.querySelector('#add-subitem').addEventListener('click', () => {
             const div = document.createElement('div');
             div.className = 'sstssd-subitem-row';
-            div.dataset.index = itemCounter++;
+            div.dataset.index = ++this.idCounter;  // Use proper ID counter
             div.innerHTML = `
                 <input type="text" class="sstssd-input sstssd-input-sm" placeholder="항목명">
                 <input type="number" class="sstssd-input sstssd-input-sm" placeholder="금액" min="0" step="10000">
@@ -1435,6 +1466,8 @@ export class BalanceModule {
     }
 
     showAddRecurringIncomeModal() {
+        const shopEnabled = this.settings.balance.shopMode.enabled;
+        
         const modal = this.createModal(`
             <h3>고정 수입 추가</h3>
             <form id="sstssd-balance-form">
@@ -1442,6 +1475,15 @@ export class BalanceModule {
                     <label>수입 이름 <span class="sstssd-required">*</span></label>
                     <input type="text" name="name" required class="sstssd-input">
                 </div>
+                ${shopEnabled ? `
+                <div class="sstssd-form-group">
+                    <label>계정 <span class="sstssd-required">*</span></label>
+                    <select name="source" class="sstssd-input">
+                        <option value="personal">개인</option>
+                        <option value="shop">가게</option>
+                    </select>
+                </div>
+                ` : ''}
                 <div class="sstssd-form-group">
                     <label>유형 <span class="sstssd-required">*</span></label>
                     <select name="type" class="sstssd-input" id="income-type">
@@ -1497,6 +1539,7 @@ export class BalanceModule {
             this.addRecurringIncome({
                 name: formData.get('name'),
                 type: type,
+                source: formData.get('source') || 'personal',
                 fixedAmount: type === 'fixed' ? parseInt(formData.get('fixedAmount')) : null,
                 minAmount: type === 'range' ? parseInt(formData.get('minAmount')) : null,
                 maxAmount: type === 'range' ? parseInt(formData.get('maxAmount')) : null,
