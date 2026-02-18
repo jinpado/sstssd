@@ -408,7 +408,12 @@ export class BakingModule {
     async generateBakingPlan(recipeName, yieldQty, yieldUnit) {
         try {
             // Try to use SillyTavern's generation API
-            const context = typeof getContext === 'function' ? getContext() : null;
+            let context = null;
+            try {
+                context = typeof window !== 'undefined' && typeof window.getContext === 'function' ? window.getContext() : null;
+            } catch (e) {
+                // getContext not available
+            }
             
             if (!context || !context.generateRaw) {
                 throw new Error('AI generation API not available');
@@ -474,11 +479,12 @@ ingredients:
             // Parse ingredients
             const ingredientsText = content.split('ingredients:')[1];
             if (ingredientsText) {
-                const ingMatches = ingredientsText.matchAll(/- name: "(.+?)"\s+qty: (\d+)\s+unit: "(.+?)"/g);
+                // Updated regex to support decimal quantities
+                const ingMatches = ingredientsText.matchAll(/- name: "(.+?)"\s+qty: (\d+(?:\.\d+)?)\s+unit: "(.+?)"/g);
                 for (const ingMatch of ingMatches) {
                     ingredients.push({
                         name: ingMatch[1],
-                        qty: parseInt(ingMatch[2]),
+                        qty: parseFloat(ingMatch[2]),
                         unit: ingMatch[3]
                     });
                 }
@@ -493,6 +499,12 @@ ingredients:
     
     // 기본 계획 생성 (AI 실패 시)
     generateDefaultPlan(recipeName, yieldQty, yieldUnit) {
+        // Default ingredient ratios per unit
+        const FLOUR_PER_UNIT = 10;  // 10g flour per unit
+        const SUGAR_PER_UNIT = 5;   // 5g sugar per unit
+        const BUTTER_PER_UNIT = 3;  // 3g butter per unit
+        const EGG_PER_10_UNITS = 1; // 1 egg per 10 units
+        
         return {
             steps: [
                 { name: "재료 계량", estimatedTime: "14:00~14:15" },
@@ -502,9 +514,9 @@ ingredients:
                 { name: "마무리", estimatedTime: "15:45~16:00" }
             ],
             ingredients: [
-                { name: "밀가루", qty: Math.round(yieldQty * 10), unit: "g" },
-                { name: "설탕", qty: Math.round(yieldQty * 5), unit: "g" },
-                { name: "버터", qty: Math.round(yieldQty * 3), unit: "g" },
+                { name: "밀가루", qty: Math.round(yieldQty * FLOUR_PER_UNIT), unit: "g" },
+                { name: "설탕", qty: Math.round(yieldQty * SUGAR_PER_UNIT), unit: "g" },
+                { name: "버터", qty: Math.round(yieldQty * BUTTER_PER_UNIT), unit: "g" },
                 { name: "달걀", qty: Math.max(1, Math.round(yieldQty / 10)), unit: "개" }
             ]
         };

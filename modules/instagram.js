@@ -152,7 +152,7 @@ export class InstagramModule {
         const daysSincePost = Math.floor((today - lastPost) / (1000 * 60 * 60 * 24));
         
         if (daysSincePost >= 7) {
-            const decay = Math.floor(10 + Math.random() * 41);  // -10 to -50
+            const decay = Math.floor(10 + Math.random() * 41);  // 10 to 50
             this.settings.instagram.followers = Math.max(0, this.settings.instagram.followers - decay);
             this.settings.instagram.followerChange -= decay;
             this.saveCallback();
@@ -238,10 +238,11 @@ export class InstagramModule {
         
         // If accepted, add to todo module
         if (status === "accepted" && this.todoModule) {
+            const DAYS_TO_MS = 24 * 60 * 60 * 1000;
             const todoTitle = `${dm.message.substring(0, 30)}${dm.message.length > 30 ? '...' : ''} (${dm.from})`;
             this.todoModule.addItem({
                 title: todoTitle,
-                deadline: this.formatDate(new Date(this.getRpDate().getTime() + 7 * 24 * 60 * 60 * 1000)), // +7 days
+                deadline: this.formatDate(new Date(this.getRpDate().getTime() + 7 * DAYS_TO_MS)), // +7 days
                 estimatedTime: "",
                 memo: `Instagram DM 주문: ${dm.message}`
             });
