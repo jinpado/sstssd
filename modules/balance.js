@@ -995,6 +995,7 @@ export class BalanceModule {
                 </div>
                 <div class="sstssd-balance-section-content ${isOpen ? 'open' : ''}">
                     <div class="sstssd-shop-mode-toggle">
+                        <label>🏪 가게 모드:</label>
                         <label class="sstssd-toggle">
                             <input type="checkbox" ${enabled ? 'checked' : ''} data-action="toggle-shop-mode">
                             <span class="sstssd-toggle-slider"></span>
