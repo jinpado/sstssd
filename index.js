@@ -90,6 +90,8 @@ function getCurrentChatData() {
     // Initialize chat data if it doesn't exist
     if (!extension_settings[MODULE_NAME].chats[chatId]) {
         extension_settings[MODULE_NAME].chats[chatId] = {
+            rpDate: null,  // Roleplay current date (null = use real time)
+            rpDateSource: null,  // "auto" (tag detection) | "manual" (manual setting)
             todo: { items: [] },
             schedule: {
                 mode: 'semester',
@@ -107,6 +109,27 @@ function getCurrentChatData() {
 // Get global settings with proper fallback
 function getGlobalSettings() {
     return extension_settings[MODULE_NAME].globalSettings;
+}
+
+// Get roleplay date or fallback to real date
+function getRpDate() {
+    const chatData = getCurrentChatData();
+    
+    if (chatData?.rpDate) {
+        return new Date(chatData.rpDate);
+    }
+    // rpDate가 없으면 현실 시간 폴백
+    return new Date();
+}
+
+// Update roleplay date
+function updateRpDate(date, source) {
+    const chatData = getCurrentChatData();
+    if (!chatData) return;
+    
+    chatData.rpDate = date;
+    chatData.rpDateSource = source;
+    saveSettings();
 }
 
 // Save settings callback
@@ -173,11 +196,22 @@ function updateSummary() {
     const summaryEl = document.getElementById('sstssd-summary');
     if (!summaryEl) return;
 
+    const chatData = getCurrentChatData();
     const urgentCount = todoModule ? todoModule.getUrgentCount() : 0;
     const nextClass = scheduleModule ? scheduleModule.getNextClass() : null;
     const upcomingAppointments = scheduleModule ? scheduleModule.getUpcomingAppointments() : [];
 
     let summaryParts = [];
+
+    // Add roleplay date display
+    if (chatData) {
+        if (chatData.rpDate) {
+            const source = chatData.rpDateSource === 'auto' ? '자동 감지됨' : '수동 설정';
+            summaryParts.push(`📅 롤플 날짜: ${chatData.rpDate} (${source}) <button class="sstssd-btn-edit-date" id="sstssd-edit-date-btn" title="날짜 수정">[수정]</button>`);
+        } else {
+            summaryParts.push(`📅 롤플 날짜: 미설정 <button class="sstssd-btn-edit-date" id="sstssd-edit-date-btn" title="날짜 설정">[설정]</button>`);
+        }
+    }
 
     if (urgentCount > 0) {
         summaryParts.push(`⚠️ 마감임박 ${urgentCount}건`);
@@ -198,6 +232,15 @@ function updateSummary() {
     }
 
     summaryEl.innerHTML = `<div class="sstssd-summary-text">${summaryParts.join(' · ')}</div>`;
+    
+    // Attach event listener to date edit button
+    const editDateBtn = document.getElementById('sstssd-edit-date-btn');
+    if (editDateBtn) {
+        editDateBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            showDateSettingModal();
+        });
+    }
 }
 
 // Toggle panel visibility
@@ -312,6 +355,68 @@ function showNoChatMessage() {
     }
 }
 
+// Show date setting modal
+function showDateSettingModal() {
+    const chatData = getCurrentChatData();
+    if (!chatData) return;
+    
+    const currentDate = chatData.rpDate || '';
+    
+    const modal = document.createElement('div');
+    modal.className = 'sstssd-modal';
+    modal.innerHTML = `
+        <div class="sstssd-modal-overlay"></div>
+        <div class="sstssd-modal-content">
+            <h3>📅 롤플 날짜 설정</h3>
+            <form id="sstssd-date-form">
+                <div class="sstssd-form-group">
+                    <label>날짜</label>
+                    <input type="date" name="rpDate" value="${currentDate}" class="sstssd-input" required>
+                </div>
+                <div class="sstssd-form-actions">
+                    <button type="button" class="sstssd-btn sstssd-btn-reset" id="sstssd-reset-date">초기화</button>
+                    <button type="button" class="sstssd-btn sstssd-btn-cancel">취소</button>
+                    <button type="submit" class="sstssd-btn sstssd-btn-primary">저장</button>
+                </div>
+            </form>
+        </div>
+    `;
+    document.body.appendChild(modal);
+    
+    const form = modal.querySelector('#sstssd-date-form');
+    const resetBtn = modal.querySelector('#sstssd-reset-date');
+    const cancelBtn = modal.querySelector('.sstssd-btn-cancel');
+    const overlay = modal.querySelector('.sstssd-modal-overlay');
+    
+    form.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const formData = new FormData(form);
+        const newDate = formData.get('rpDate');
+        
+        // Validate date
+        if (!isNaN(new Date(newDate).getTime())) {
+            updateRpDate(newDate, 'manual');
+            renderAllModules();
+            modal.remove();
+        }
+    });
+    
+    resetBtn.addEventListener('click', () => {
+        updateRpDate(null, null);
+        renderAllModules();
+        modal.remove();
+    });
+    
+    cancelBtn.addEventListener('click', () => modal.remove());
+    overlay.addEventListener('click', () => modal.remove());
+}
+
+// Re-render all modules
+function renderAllModules() {
+    initModules();
+    updateSummary();
+}
+
 // Initialize modules
 function initModules() {
     try {
@@ -326,14 +431,14 @@ function initModules() {
         const globalSettings = getGlobalSettings();
         
         // Initialize Todo module with chat-specific data and global settings getter
-        todoModule = new TodoModule(chatData, saveSettings, getGlobalSettings);
+        todoModule = new TodoModule(chatData, saveSettings, getGlobalSettings, getRpDate);
         const todoContainer = document.querySelector('.sstssd-module[data-module="todo"]');
         if (todoContainer) {
             todoModule.render(todoContainer);
         }
 
         // Initialize Schedule module with chat-specific data and global settings getter
-        scheduleModule = new ScheduleModule(chatData, saveSettings, getGlobalSettings);
+        scheduleModule = new ScheduleModule(chatData, saveSettings, getGlobalSettings, getRpDate);
         const scheduleContainer = document.querySelector('.sstssd-module[data-module="schedule"]');
         if (scheduleContainer) {
             scheduleModule.render(scheduleContainer);
@@ -416,8 +521,18 @@ function initObserver() {
                 for (const node of mutation.addedNodes) {
                     if (node.nodeType === Node.ELEMENT_NODE) {
                         const text = node.textContent || '';
-                        // Future: Parse tags like <TASKS>, <TIMELINE>, <FIN_IN>, <FIN_OUT>
-                        // For now, just setup the structure
+                        
+                        // Parse DATE tags from AI responses
+                        const dateMatch = text.match(/<DATE>([\d]{4}-[\d]{2}-[\d]{2})<\/DATE>/);
+                        if (dateMatch) {
+                            const newDate = dateMatch[1];
+                            // Validate date
+                            if (!isNaN(new Date(newDate).getTime())) {
+                                console.log(`SSTSSD: Auto-detected roleplay date: ${newDate}`);
+                                updateRpDate(newDate, 'auto');
+                                renderAllModules();
+                            }
+                        }
                     }
                 }
             }
@@ -487,4 +602,4 @@ jQuery(async () => {
 });
 
 // Export for potential use by other extensions
-export { MODULE_NAME, todoModule, scheduleModule };
+export { MODULE_NAME, todoModule, scheduleModule, getRpDate };
