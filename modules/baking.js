@@ -838,6 +838,7 @@ export class BakingModule {
         // Get today's completed history
         const today = this.formatDate(this.getRpDate());
         const todayHistory = history.filter(h => h.date === today);
+        const olderHistory = history.filter(h => h.date !== today);
         
         // Preserve accordion state
         const contentEl = container.querySelector('.sstssd-module-content');
@@ -888,11 +889,11 @@ export class BakingModule {
                 <!-- 구매 리스트 -->
                 ${this.renderShoppingList()}
                 
-                <!-- 전체 베이킹 이력 -->
-                ${history.length > 0 ? `
+                <!-- 이전 베이킹 이력 -->
+                ${olderHistory.length > 0 ? `
                     <div class="sstssd-section">
-                        <div class="sstssd-section-title">📜 베이킹 이력</div>
-                        ${history.map(h => this.renderHistoryItem(h)).join('')}
+                        <div class="sstssd-section-title">📜 이전 이력</div>
+                        ${olderHistory.map(h => this.renderHistoryItem(h)).join('')}
                     </div>
                 ` : ''}
             </div>
