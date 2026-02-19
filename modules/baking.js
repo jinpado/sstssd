@@ -528,10 +528,21 @@ export class BakingModule {
         if (bakeTagData.pct >= 100) {
             console.log('SSTSSD: Baking complete detected, finalizing:', recipe.name);
             
-            // Use completeStep to finalize (will deduct ingredients and add product)
-            const lastStepIndex = recipe.steps.length - 1;
+            // Mark all steps as completed
+            if (recipe.steps) {
+                recipe.steps.forEach(step => {
+                    step.status = 'completed';
+                });
+            }
+            
+            // Call completeStep to finalize (will deduct ingredients and add product)
+            const lastStepIndex = recipe.steps ? recipe.steps.length - 1 : -1;
             if (lastStepIndex >= 0) {
                 this.completeStep(recipe.id, lastStepIndex);
+            } else {
+                // No steps defined, manually complete
+                recipe.status = 'completed';
+                this.saveCallback();
             }
         } else {
             this.saveCallback();
@@ -921,8 +932,7 @@ export class BakingModule {
                         `).join('')}
                     </div>
                     <div class="sstssd-baking-actions">
-                        <button class="sstssd-btn sstssd-btn-sm sstssd-btn-primary" data-action="bake" data-id="${recipe.id}">🧁 베이킹</button>
-                        <button class="sstssd-btn sstssd-btn-sm sstssd-btn-success" data-action="start-step-baking" data-id="${recipe.id}">▶ 단계별 시작</button>
+                        <button class="sstssd-btn sstssd-btn-sm sstssd-btn-success sstssd-btn-start-baking" data-action="start-step-baking" data-id="${recipe.id}">▶ 시작</button>
                         <button class="sstssd-btn sstssd-btn-sm" data-action="edit-recipe" data-id="${recipe.id}">✏️</button>
                         <button class="sstssd-btn sstssd-btn-sm" data-action="delete-recipe" data-id="${recipe.id}">🗑</button>
                     </div>
@@ -1091,16 +1101,6 @@ export class BakingModule {
         if (addRecipeBtn) {
             addRecipeBtn.addEventListener('click', () => this.showAddRecipeModal());
         }
-        
-        // 베이킹 버튼
-        const bakeBtns = container.querySelectorAll('[data-action="bake"]');
-        bakeBtns.forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                const id = parseInt(btn.dataset.id);
-                this.showBakeModal(id);
-            });
-        });
         
         // 레시피 수정 버튼
         const editBtns = container.querySelectorAll('[data-action="edit-recipe"]');
@@ -2070,7 +2070,7 @@ ingredients:
         modal.innerHTML = `
             <div class="sstssd-modal-overlay"></div>
             <div class="sstssd-modal-content">
-                <h3>▶ 단계별 베이킹 시작</h3>
+                <h3>▶ 베이킹 시작</h3>
                 <form id="sstssd-step-bake-form">
                     <div class="sstssd-form-group">
                         <label>레시피: ${this.escapeHtml(recipe.name)}</label>
@@ -2088,11 +2088,11 @@ ingredients:
                         <div id="ingredient-check"></div>
                     </div>
                     <p style="color: #9ca3af; font-size: 13px;">
-                        💡 각 단계를 직접 시작/완료하면서 베이킹을 진행합니다. 재료는 마지막 단계 완료 시 차감됩니다.
+                        💡 베이킹을 시작하면 QR 시스템과 연동됩니다. AI가 <code>&lt;BAKE&gt;</code> 태그로 진행 상황을 업데이트하며, 100% 완료 시 자동으로 재료가 차감되고 완제품이 추가됩니다.
                     </p>
                     <div class="sstssd-form-actions">
                         <button type="button" class="sstssd-btn sstssd-btn-cancel">취소</button>
-                        <button type="submit" class="sstssd-btn sstssd-btn-primary">단계별 시작</button>
+                        <button type="submit" class="sstssd-btn sstssd-btn-primary">▶ 시작</button>
                     </div>
                 </form>
             </div>
