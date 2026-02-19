@@ -627,7 +627,7 @@ function initModules() {
         }
         
         // Initialize Inventory module with chat-specific data and global settings getter
-        inventoryModule = new InventoryModule(chatData, saveSettings, getGlobalSettings, getRpDate);
+        inventoryModule = new InventoryModule(chatData, saveSettings, getGlobalSettings, getRpDate, balanceModule);
         const inventoryContainer = document.querySelector('.sstssd-module[data-module="inventory"]');
         if (inventoryContainer) {
             inventoryModule.render(inventoryContainer);
