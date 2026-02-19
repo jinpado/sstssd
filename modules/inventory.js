@@ -1,5 +1,29 @@
 // 📦 재고 모듈 (Inventory Module)
 export class InventoryModule {
+    // 자주 쓰는 재료 프리셋
+    static COMMON_INGREDIENTS = [
+        { name: "박력분", unit: "g", category: "가루류", defaultQty: 1000 },
+        { name: "강력분", unit: "g", category: "가루류", defaultQty: 1000 },
+        { name: "아몬드가루", unit: "g", category: "가루류", defaultQty: 500 },
+        { name: "슈가파우더", unit: "g", category: "가루류", defaultQty: 500 },
+        { name: "코코아파우더", unit: "g", category: "가루류", defaultQty: 200 },
+        { name: "무염버터", unit: "g", category: "유지류", defaultQty: 450 },
+        { name: "생크림", unit: "ml", category: "유지류", defaultQty: 500 },
+        { name: "크림치즈", unit: "g", category: "유지류", defaultQty: 200 },
+        { name: "우유", unit: "ml", category: "유지류", defaultQty: 1000 },
+        { name: "달걀", unit: "개", category: "달걀/기타", defaultQty: 10 },
+        { name: "바닐라 익스트랙", unit: "ml", category: "달걀/기타", defaultQty: 30 },
+        { name: "설탕", unit: "g", category: "달걀/기타", defaultQty: 1000 },
+        { name: "소금", unit: "g", category: "달걀/기타", defaultQty: 500 },
+        { name: "다크 커버춰 초콜릿", unit: "g", category: "초콜릿류", defaultQty: 500 },
+        { name: "화이트 초콜릿", unit: "g", category: "초콜릿류", defaultQty: 300 },
+        { name: "딸기", unit: "g", category: "과일류", defaultQty: 500 },
+        { name: "블루베리", unit: "g", category: "과일류", defaultQty: 200 },
+        { name: "레몬즙", unit: "ml", category: "과일류", defaultQty: 100 },
+        { name: "젤라틴", unit: "g", category: "기타", defaultQty: 50 },
+        { name: "베이킹파우더", unit: "g", category: "기타", defaultQty: 100 },
+    ];
+    
     constructor(settings, saveCallback, getGlobalSettings, getRpDate) {
         this.settings = settings;
         this.saveCallback = saveCallback;
@@ -113,11 +137,50 @@ export class InventoryModule {
         return false;
     }
     
+    // 퍼지 매칭으로 재료 찾기
+    findIngredientFuzzy(name) {
+        const ingredients = this.settings.inventory.items.filter(i => i.type === "ingredient");
+        
+        // 1순위: 완전 일치
+        let match = ingredients.find(i => i.name === name);
+        if (match) return match;
+        
+        // 2순위: 대소문자 무시 완전 일치
+        const nameLower = name.toLowerCase();
+        match = ingredients.find(i => i.name.toLowerCase() === nameLower);
+        if (match) return match;
+        
+        // 3순위: 포함 관계 매칭
+        // 규칙: 재고 이름이 요청 이름을 포함하거나, 요청 이름이 재고 이름보다 길고 재고 이름을 포함
+        // "딸기" 요청 → "설향딸기" 재고 매칭 ✓
+        // "설향딸기" 요청 → "딸기" 재고 매칭 ✓ (더 구체적인 것을 일반적인 것으로 대체)
+        // "딸기잼" 요청 → "딸기" 재고 매칭 ✗ (접미사가 다른 재료)
+        match = ingredients.find(i => {
+            // 재고 이름이 요청을 포함: "설향딸기" includes "딸기"
+            if (i.name.includes(name)) return true;
+            // 요청이 재고 이름을 포함하고, 요청이 재고보다 길고, 재고가 요청의 시작 부분과 일치
+            // "설향딸기" includes "딸기" AND "설향딸기" starts with "딸기" (for reversed case)
+            if (name.includes(i.name) && name.startsWith(i.name)) return true;
+            return false;
+        });
+        if (match) return match;
+        
+        // 4순위: 공백/특수문자 제거 후 포함 관계
+        const nameNormalized = name.replace(/[\s\-_]/g, '').toLowerCase();
+        match = ingredients.find(i => {
+            const itemNormalized = i.name.replace(/[\s\-_]/g, '').toLowerCase();
+            if (itemNormalized.includes(nameNormalized)) return true;
+            if (nameNormalized.includes(itemNormalized) && nameNormalized.startsWith(itemNormalized)) return true;
+            return false;
+        });
+        if (match) return match;
+        
+        return null;
+    }
+    
     // 재료 수량 변경 (베이킹 모듈에서 사용)
     changeItemQty(itemName, change, reason, source = "baking") {
-        const item = this.settings.inventory.items.find(i => 
-            i.name === itemName && i.type === "ingredient"
-        );
+        const item = this.findIngredientFuzzy(itemName);
         
         if (!item) {
             console.warn(`Inventory item not found: ${itemName}`);
@@ -125,6 +188,27 @@ export class InventoryModule {
         }
         
         item.qty += change;
+        
+        // Auto-cleanup for depleted ingredients from baking
+        // Only delete if final quantity is <=0 AND the operation source is "baking"
+        // This prevents keeping brand-specific ingredients (e.g., "끼리크림치즈") after use
+        if (item.qty <= 0 && source === "baking") {
+            // Record deletion in history
+            this.addHistory({
+                itemName: item.name,
+                change: change,
+                afterQty: 0,
+                reason: reason + " (사용 완료 - 자동 삭제)",
+                source: source
+            });
+            // Remove from items array
+            const idx = this.settings.inventory.items.indexOf(item);
+            if (idx !== -1) {
+                this.settings.inventory.items.splice(idx, 1);
+            }
+            this.saveCallback();
+            return true;
+        }
         
         this.addHistory({
             itemName: item.name,
@@ -311,7 +395,10 @@ export class InventoryModule {
                         ${Object.values(categorized).every(arr => arr.length === 0) ? `
                             <div class="sstssd-empty">재료가 없습니다</div>
                         ` : ''}
-                        <button class="sstssd-btn sstssd-btn-add" data-action="add-ingredient">+ 재료 추가</button>
+                        <div style="display: flex; gap: 8px;">
+                            <button class="sstssd-btn sstssd-btn-add" data-action="quick-add-ingredient" style="flex: 1;">⚡ 빠른 추가</button>
+                            <button class="sstssd-btn sstssd-btn-add" data-action="add-ingredient" style="flex: 1;">+ 재료 추가</button>
+                        </div>
                     </div>
                 </div>
                 
@@ -461,6 +548,12 @@ export class InventoryModule {
             });
         });
         
+        // 빠른 추가 버튼
+        const quickAddBtn = container.querySelector('[data-action="quick-add-ingredient"]');
+        if (quickAddBtn) {
+            quickAddBtn.addEventListener('click', () => this.showQuickAddModal());
+        }
+        
         // 재료 추가 버튼
         const addIngredientBtn = container.querySelector('[data-action="add-ingredient"]');
         if (addIngredientBtn) {
@@ -516,6 +609,105 @@ export class InventoryModule {
     }
     
     // ===== 모달 =====
+    // 빠른 추가 모달
+    showQuickAddModal() {
+        const modal = document.createElement('div');
+        modal.className = 'sstssd-modal';
+        
+        // 카테고리별로 재료 그룹화
+        const ingredientsByCategory = {};
+        InventoryModule.COMMON_INGREDIENTS.forEach(ing => {
+            if (!ingredientsByCategory[ing.category]) {
+                ingredientsByCategory[ing.category] = [];
+            }
+            ingredientsByCategory[ing.category].push(ing);
+        });
+        
+        modal.innerHTML = `
+            <div class="sstssd-modal-overlay"></div>
+            <div class="sstssd-modal-content" style="max-width: 600px;">
+                <h3>⚡ 빠른 추가</h3>
+                <div style="margin-bottom: 16px; color: #9ca3af; font-size: 14px;">
+                    자주 쓰는 재료를 빠르게 추가할 수 있습니다. 재료를 클릭하면 기본 수량으로 추가됩니다.
+                </div>
+                ${Object.keys(ingredientsByCategory).map(category => `
+                    <div style="margin-bottom: 16px;">
+                        <div style="font-weight: bold; margin-bottom: 8px; color: #10b981;">${category}</div>
+                        <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+                            ${ingredientsByCategory[category].map(ing => `
+                                <button 
+                                    class="sstssd-btn sstssd-btn-sm sstssd-quick-add-item" 
+                                    data-name="${this.escapeHtml(ing.name)}"
+                                    data-unit="${ing.unit}"
+                                    data-category="${ing.category}"
+                                    data-qty="${ing.defaultQty}"
+                                    style="background: #1e1e3a; border: 1px solid #10b981; padding: 6px 12px;"
+                                >
+                                    ${this.escapeHtml(ing.name)} (${ing.defaultQty}${ing.unit})
+                                </button>
+                            `).join('')}
+                        </div>
+                    </div>
+                `).join('')}
+                <div class="sstssd-form-actions">
+                    <button type="button" class="sstssd-btn sstssd-btn-cancel">닫기</button>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(modal);
+        
+        const cancelBtn = modal.querySelector('.sstssd-btn-cancel');
+        const overlay = modal.querySelector('.sstssd-modal-overlay');
+        const quickAddBtns = modal.querySelectorAll('.sstssd-quick-add-item');
+        
+        // 재료 버튼 클릭 이벤트
+        quickAddBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                const name = btn.dataset.name;
+                const unit = btn.dataset.unit;
+                const category = btn.dataset.category;
+                const defaultQty = parseFloat(btn.dataset.qty);
+                
+                // 수량 입력 프롬프트
+                const qty = prompt(`${name}의 수량을 입력하세요 (기본값: ${defaultQty}${unit})`, defaultQty);
+                
+                if (qty !== null && qty !== '') {
+                    const parsedQty = parseFloat(qty);
+                    if (!isNaN(parsedQty) && parsedQty > 0) {
+                        this.addItem({
+                            name: name,
+                            qty: parsedQty,
+                            unit: unit,
+                            category: category,
+                            minStock: 0,
+                            type: 'ingredient',
+                            reason: '빠른 추가',
+                            source: 'manual'
+                        });
+                        
+                        const moduleContainer = document.querySelector('.sstssd-module[data-module="inventory"]');
+                        if (moduleContainer) {
+                            this.render(moduleContainer);
+                        }
+                        
+                        // 성공 피드백
+                        btn.style.background = '#10b981';
+                        btn.textContent = '✓ 추가됨';
+                        setTimeout(() => {
+                            btn.style.background = '#1e1e3a';
+                            btn.textContent = `${name} (${defaultQty}${unit})`;
+                        }, 1000);
+                    } else {
+                        alert('올바른 수량을 입력해주세요.');
+                    }
+                }
+            });
+        });
+        
+        cancelBtn.addEventListener('click', () => modal.remove());
+        overlay.addEventListener('click', () => modal.remove());
+    }
+    
     // 재료 추가 모달
     showAddItemModal() {
         const modal = document.createElement('div');

@@ -191,9 +191,7 @@ export class BakingModule {
         if (this.inventoryModule && recipe.ingredients && recipe.ingredients.length > 0) {
             for (const ingredient of recipe.ingredients) {
                 const requiredQty = ingredient.qty * multiplier;
-                const item = this.inventoryModule.settings.inventory.items.find(i => 
-                    i.name === ingredient.name && i.type === "ingredient"
-                );
+                const item = this.inventoryModule.findIngredientFuzzy(ingredient.name);
                 
                 // 보유량이 충분하면 차감, 아니면 스킵 (이미 RP에서 구매했을 수 있음)
                 if (item && item.qty >= requiredQty) {
@@ -248,9 +246,7 @@ export class BakingModule {
         if (this.inventoryModule && recipe.ingredients && recipe.ingredients.length > 0) {
             for (const ingredient of recipe.ingredients) {
                 const requiredQty = ingredient.qty * multiplier;
-                const item = this.inventoryModule.settings.inventory.items.find(i => 
-                    i.name === ingredient.name && i.type === "ingredient"
-                );
+                const item = this.inventoryModule.findIngredientFuzzy(ingredient.name);
                 
                 if (item && item.qty >= requiredQty) {
                     this.inventoryModule.changeItemQty(
@@ -459,9 +455,7 @@ export class BakingModule {
                 if (recipe.ingredients && recipe.ingredients.length > 0) {
                     for (const ingredient of recipe.ingredients) {
                         const requiredQty = ingredient.qty * multiplier;
-                        const item = this.inventoryModule.settings.inventory.items.find(i => 
-                            i.name === ingredient.name && i.type === "ingredient"
-                        );
+                        const item = this.inventoryModule.findIngredientFuzzy(ingredient.name);
                         
                         // 보유량이 충분하면 차감, 아니면 스킵
                         if (item && item.qty >= requiredQty) {
@@ -866,9 +860,7 @@ export class BakingModule {
         // 1. 재고에 전부 추가
         if (this.inventoryModule) {
             locationList.items.forEach(item => {
-                const existingItem = this.inventoryModule.settings.inventory.items.find(i => 
-                    i.name === item.name && i.type === "ingredient"
-                );
+                const existingItem = this.inventoryModule.findIngredientFuzzy(item.name);
                 
                 if (existingItem) {
                     // 기존 재료 수량 증가
@@ -1860,9 +1852,7 @@ ingredients:
         
         // Check ingredient availability
         const ingredientStatus = plan.ingredients.map(ing => {
-            const item = this.inventoryModule?.settings.inventory.items.find(i => 
-                i.name === ing.name && i.type === "ingredient"
-            );
+            const item = this.inventoryModule?.findIngredientFuzzy(ing.name);
             const available = item ? item.qty : 0;
             const sufficient = available >= ing.qty;
             
@@ -2257,9 +2247,7 @@ ingredients:
             
             recipe.ingredients.forEach(ing => {
                 const required = ing.qty * multiplier;
-                const item = this.inventoryModule?.settings.inventory.items.find(i => 
-                    i.name === ing.name && i.type === "ingredient"
-                );
+                const item = this.inventoryModule?.findIngredientFuzzy(ing.name);
                 const available = item ? item.qty : 0;
                 const sufficient = available >= required;
                 const icon = sufficient ? '✅' : '❌';
@@ -2369,9 +2357,7 @@ ingredients:
             
             recipe.ingredients.forEach(ing => {
                 const required = ing.qty * multiplier;
-                const item = this.inventoryModule?.settings.inventory.items.find(i => 
-                    i.name === ing.name && i.type === "ingredient"
-                );
+                const item = this.inventoryModule?.findIngredientFuzzy(ing.name);
                 const available = item ? item.qty : 0;
                 const sufficient = available >= required;
                 const icon = sufficient ? '✅' : '❌';
