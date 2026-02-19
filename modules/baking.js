@@ -963,18 +963,18 @@ export class BakingModule {
     }
     
     // 전체 구매 완료
-    completeAllPurchases() {
+    async completeAllPurchases() {
         let totalPrice = 0;
         let totalItems = 0;
         const locations = [...this.settings.baking.shoppingList];
         
-        locations.forEach(list => {
-            const result = this.completePurchase(list.id);
+        for (const list of locations) {
+            const result = await this.completePurchase(list.id);
             if (result.success) {
                 totalPrice += result.totalPrice;
                 totalItems += result.itemCount;
             }
-        });
+        }
         
         return { success: true, totalPrice, totalItems };
     }
@@ -1455,7 +1455,7 @@ export class BakingModule {
                 e.stopPropagation();
                 const locationId = parseInt(btn.dataset.locationId);
                 if (confirm('이 장소의 구매를 완료하시겠습니까?')) {
-                    const result = this.completePurchase(locationId);
+                    const result = await this.completePurchase(locationId);
                     if (result.success) {
                         alert(`구매 완료! ${result.itemCount}개 항목, 총 ${this.formatCurrency(result.totalPrice)}원`);
                         this.render(container);
@@ -1484,9 +1484,9 @@ export class BakingModule {
         // 구매 리스트 - 전체 구매 완료 버튼
         const completeAllBtn = container.querySelector('[data-action="complete-all-purchases"]');
         if (completeAllBtn) {
-            completeAllBtn.addEventListener('click', () => {
+            completeAllBtn.addEventListener('click', async () => {
                 if (confirm('전체 구매를 완료하시겠습니까?')) {
-                    const result = this.completeAllPurchases();
+                    const result = await this.completeAllPurchases();
                     if (result.success) {
                         alert(`전체 구매 완료! ${result.totalItems}개 항목, 총 ${this.formatCurrency(result.totalPrice)}원`);
                         this.render(container);
