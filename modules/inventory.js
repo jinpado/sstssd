@@ -749,6 +749,16 @@ export class InventoryModule {
                                 amount: price,
                                 memo: "빠른 추가"
                             });
+                            
+                            // 잔고 모듈도 다시 렌더링
+                            const balanceContainer = document.querySelector('.sstssd-module[data-module="balance"]');
+                            if (balanceContainer) {
+                                this.balanceModule.render(balanceContainer);
+                            }
+                            
+                            if (typeof window.sstsdUpdateSummary === 'function') {
+                                window.sstsdUpdateSummary();
+                            }
                         }
                         
                         const moduleContainer = document.querySelector('.sstssd-module[data-module="inventory"]');
@@ -866,6 +876,16 @@ export class InventoryModule {
                     amount: price,
                     memo: "재고 직접 추가"
                 });
+                
+                // 잔고 모듈도 다시 렌더링
+                const balanceContainer = document.querySelector('.sstssd-module[data-module="balance"]');
+                if (balanceContainer) {
+                    this.balanceModule.render(balanceContainer);
+                }
+                
+                if (typeof window.sstsdUpdateSummary === 'function') {
+                    window.sstsdUpdateSummary();
+                }
             }
             
             const moduleContainer = document.querySelector('.sstssd-module[data-module="inventory"]');
