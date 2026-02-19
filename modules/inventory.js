@@ -150,16 +150,28 @@ export class InventoryModule {
         match = ingredients.find(i => i.name.toLowerCase() === nameLower);
         if (match) return match;
         
-        // 3순위: 포함 관계 매칭 (짧은 이름이 긴 이름에 포함)
-        // "딸기" ⊂ "설향딸기", "크림치즈" ⊂ "끼리크림치즈"
-        match = ingredients.find(i => i.name.includes(name) || name.includes(i.name));
+        // 3순위: 포함 관계 매칭
+        // 규칙: 재고 이름이 요청 이름을 포함하거나, 요청 이름이 재고 이름보다 길고 재고 이름을 포함
+        // "딸기" 요청 → "설향딸기" 재고 매칭 ✓
+        // "설향딸기" 요청 → "딸기" 재고 매칭 ✓ (더 구체적인 것을 일반적인 것으로 대체)
+        // "딸기잼" 요청 → "딸기" 재고 매칭 ✗ (접미사가 다른 재료)
+        match = ingredients.find(i => {
+            // 재고 이름이 요청을 포함: "설향딸기" includes "딸기"
+            if (i.name.includes(name)) return true;
+            // 요청이 재고 이름을 포함하고, 요청이 재고보다 길고, 재고가 요청의 시작 부분과 일치
+            // "설향딸기" includes "딸기" AND "설향딸기" starts with "딸기" (for reversed case)
+            if (name.includes(i.name) && name.startsWith(i.name)) return true;
+            return false;
+        });
         if (match) return match;
         
         // 4순위: 공백/특수문자 제거 후 포함 관계
         const nameNormalized = name.replace(/[\s\-_]/g, '').toLowerCase();
         match = ingredients.find(i => {
             const itemNormalized = i.name.replace(/[\s\-_]/g, '').toLowerCase();
-            return itemNormalized.includes(nameNormalized) || nameNormalized.includes(itemNormalized);
+            if (itemNormalized.includes(nameNormalized)) return true;
+            if (nameNormalized.includes(itemNormalized) && nameNormalized.startsWith(itemNormalized)) return true;
+            return false;
         });
         if (match) return match;
         
@@ -178,6 +190,8 @@ export class InventoryModule {
         item.qty += change;
         
         // Auto-cleanup for depleted ingredients from baking
+        // Only delete if final quantity is <=0 AND the operation source is "baking"
+        // This prevents keeping brand-specific ingredients (e.g., "끼리크림치즈") after use
         if (item.qty <= 0 && source === "baking") {
             // Record deletion in history
             this.addHistory({
