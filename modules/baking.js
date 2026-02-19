@@ -875,7 +875,7 @@ export class BakingModule {
                         name: item.name,
                         qty: item.qty,
                         unit: item.unit,
-                        category: "기타",
+                        category: this.inventoryModule.guessCategory(item.name),
                         minStock: 0,
                         type: "ingredient",
                         reason: `구매 (${location})`,

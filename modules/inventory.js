@@ -179,6 +179,27 @@ export class InventoryModule {
         return null;
     }
     
+    // 재료명 기반 카테고리 추측
+    guessCategory(ingredientName) {
+        // 1. COMMON_INGREDIENTS에서 찾기
+        const preset = InventoryModule.COMMON_INGREDIENTS.find(ing => {
+            if (ing.name === ingredientName) return true;
+            if (ing.name.includes(ingredientName) || ingredientName.includes(ing.name)) return true;
+            return false;
+        });
+        if (preset) return preset.category;
+        
+        // 2. 키워드 기반 추측
+        const name = ingredientName.toLowerCase();
+        if (name.includes('가루') || name.includes('분') || name.includes('파우더') || name.includes('밀가루')) return '가루류';
+        if (name.includes('버터') || name.includes('크림') || name.includes('우유') || name.includes('오일')) return '유지류';
+        if (name.includes('달걀') || name.includes('계란') || name.includes('설탕') || name.includes('소금') || name.includes('바닐라')) return '달걀/기타';
+        if (name.includes('초콜릿') || name.includes('초코') || name.includes('커버춰') || name.includes('카카오')) return '초콜릿류';
+        if (name.includes('딸기') || name.includes('블루베리') || name.includes('레몬') || name.includes('과일') || name.includes('바나나') || name.includes('망고') || name.includes('라즈베리') || name.includes('체리')) return '과일류';
+        
+        return '기타';
+    }
+    
     // 재료 수량 변경 (베이킹 모듈에서 사용)
     changeItemQty(itemName, change, reason, source = "baking") {
         const item = this.findIngredientFuzzy(itemName);
@@ -189,6 +210,25 @@ export class InventoryModule {
         }
         
         item.qty += change;
+        
+        // 베이킹으로 인해 0 이하가 되면 자동 삭제
+        if (item.qty <= 0 && source === "baking") {
+            this.addHistory({
+                itemName: item.name,
+                change: change,
+                afterQty: 0,
+                reason: reason + " (사용 완료)",
+                source: source
+            });
+            
+            const idx = this.settings.inventory.items.indexOf(item);
+            if (idx !== -1) {
+                this.settings.inventory.items.splice(idx, 1);
+            }
+            
+            this.saveCallback();
+            return true;
+        }
         
         this.addHistory({
             itemName: item.name,
@@ -668,19 +708,33 @@ export class InventoryModule {
                     const parsedQty = parseFloat(qty);
                     if (!isNaN(parsedQty) && parsedQty > 0) {
                         // 가격 입력 프롬프트 (수량 입력 후)
-                        const priceInput = prompt(`${name}의 가격을 입력하세요 (기본값: ${defaultPrice}원)\n가격을 입력하면 잔고에서 차감됩니다.`, defaultPrice);
+                        const adjustedPrice = Math.round(defaultPrice * (parsedQty / defaultQty));
+                        const priceInput = prompt(`${name}의 가격을 입력하세요 (기본값: ${adjustedPrice}원)\n가격을 입력하면 잔고에서 차감됩니다.`, adjustedPrice);
+                        if (priceInput === null) return; // 취소 시 중단
                         const price = parseFloat(priceInput) || 0;
                         
-                        this.addItem({
-                            name: name,
-                            qty: parsedQty,
-                            unit: unit,
-                            category: category,
-                            minStock: 0,
-                            type: 'ingredient',
-                            reason: '빠른 추가',
-                            source: 'manual'
-                        });
+                        // 기존 항목 확인 후 합산 또는 신규 추가
+                        const existingItem = this.findIngredientFuzzy(name);
+                        if (existingItem) {
+                            // 기존 항목에 수량 합산
+                            this.updateItem(existingItem.id, {
+                                qty: existingItem.qty + parsedQty,
+                                reason: '빠른 추가 (수량 합산)',
+                                source: 'manual'
+                            });
+                        } else {
+                            // 새 항목 추가
+                            this.addItem({
+                                name: name,
+                                qty: parsedQty,
+                                unit: unit,
+                                category: category,
+                                minStock: 0,
+                                type: 'ingredient',
+                                reason: '빠른 추가',
+                                source: 'manual'
+                            });
+                        }
                         
                         // 가격이 입력되면 잔고에서 차감
                         if (price > 0 && this.balanceModule) {
@@ -776,16 +830,28 @@ export class InventoryModule {
             const unit = formData.get('unit');
             const price = parseFloat(formData.get('price')) || 0;
             
-            this.addItem({
-                name: name,
-                qty: qty,
-                unit: unit,
-                category: formData.get('category'),
-                minStock: parseFloat(formData.get('minStock')),
-                type: 'ingredient',
-                reason: '직접 추가',
-                source: 'manual'
-            });
+            // 기존 항목 확인 후 합산 또는 신규 추가
+            const existingItem = this.findIngredientFuzzy(name);
+            if (existingItem) {
+                // 기존 항목에 수량 합산
+                this.updateItem(existingItem.id, {
+                    qty: existingItem.qty + qty,
+                    reason: '직접 추가 (수량 합산)',
+                    source: 'manual'
+                });
+            } else {
+                // 새 항목 추가
+                this.addItem({
+                    name: name,
+                    qty: qty,
+                    unit: unit,
+                    category: formData.get('category'),
+                    minStock: parseFloat(formData.get('minStock')),
+                    type: 'ingredient',
+                    reason: '직접 추가',
+                    source: 'manual'
+                });
+            }
             
             // 가격이 입력되면 잔고에서 차감
             if (price > 0 && this.balanceModule) {
