@@ -13,6 +13,9 @@ import { InstagramModule } from './modules/instagram.js';
 
 const MODULE_NAME = 'sstssd';
 
+// Time constants
+const MS_PER_DAY = 24 * 60 * 60 * 1000;  // Milliseconds in a day
+
 // Tag detection regex patterns
 const FIN_IN_REGEX = /<FIN_IN>(.+?)\|(\d+)\s*<\/FIN_IN>/g;
 const FIN_OUT_REGEX = /<FIN_OUT>(.+?)\|(\d+)\s*<\/FIN_OUT>/g;
@@ -965,17 +968,18 @@ function initObserver() {
                                 
                                 const parsedItems = [];
                                 
-                                // Try WI format first: 품명|가격§구분
+                                // Try WI format first: 품명|가격§구분 (with optional qty and unit defaults)
                                 if (itemsText.includes('§') && !itemsText.includes('🔸')) {
                                     const wiItems = itemsText.split('§');
                                     for (const wiItem of wiItems) {
                                         const parts = wiItem.trim().split('|');
                                         if (parts.length >= 2) {
-                                            // parts[0] = name, parts[1] = price
+                                            // WI format: name|price (defaults to qty=1, unit='개' for generic items)
+                                            // Note: For specific units, use QR format with emoji and dash separator
                                             parsedItems.push({
                                                 name: parts[0].trim(),
                                                 qty: 1,
-                                                unit: "개",
+                                                unit: "개",  // Default unit for WI format (use QR format for specific units)
                                                 price: parseInt(parts[1].replace(/[^\d]/g, '')) || 0
                                             });
                                         }
@@ -1012,7 +1016,7 @@ function initObserver() {
                                                     });
                                                 } else {
                                                     // Fallback failed too
-                                                    console.warn(`SSTSSD: Could not parse shopping item line: "${trimmed}". Expected format: "🔸 아몬드 가루 — 200g — 4,500원" or WI format "품명|가격"`);
+                                                    console.warn(`SSTSSD: Could not parse shopping item line: "${trimmed}". Expected QR format: "🔸 아몬드 가루 — 200g — 4,500원" or WI format: "품명|가격§구분" (qty/unit default to 1개)`);
                                                 }
                                             }
                                         }
@@ -1113,7 +1117,7 @@ function initObserver() {
                                             const today = todoModule.getRpDate();
                                             todoModule.addItem({
                                                 title: item,
-                                                deadline: new Date(today.getTime() + 24 * 60 * 60 * 1000).toISOString().split('T')[0], // Tomorrow
+                                                deadline: new Date(today.getTime() + MS_PER_DAY).toISOString().split('T')[0], // Tomorrow
                                                 estimatedTime: '',
                                                 memo: 'AI 자동 감지 (긴급)'
                                             });
@@ -1130,7 +1134,7 @@ function initObserver() {
                                             const today = todoModule.getRpDate();
                                             todoModule.addItem({
                                                 title: item,
-                                                deadline: new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // 1 week
+                                                deadline: new Date(today.getTime() + 7 * MS_PER_DAY).toISOString().split('T')[0], // 1 week
                                                 estimatedTime: '',
                                                 memo: 'AI 자동 감지 (이번 주)'
                                             });
