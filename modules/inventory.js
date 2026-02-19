@@ -298,7 +298,7 @@ export class InventoryModule {
             if (item.qty <= 0) {
                 // minStock이 0이거나 설정 안 된 재료는 부족 알림에서 제외
                 // (딱 필요한 만큼 사서 다 쓴 재료 = 알림 불필요)
-                if (item.minStock && item.minStock > 0) {
+                if (item.minStock > 0) {
                     out.push(item);
                 }
                 // minStock이 0이면 알림에 안 뜸
@@ -330,6 +330,12 @@ export class InventoryModule {
         const div = document.createElement('div');
         div.textContent = text;
         return div.innerHTML;
+    }
+    
+    // 샵 모드 활성화 여부 확인
+    getShopModeEnabled() {
+        const chatData = this.balanceModule?.settings;
+        return chatData?.balance?.shopMode?.enabled || false;
     }
     
     // ===== UI 렌더링 =====
@@ -663,7 +669,7 @@ export class InventoryModule {
                     if (!isNaN(parsedQty) && parsedQty > 0) {
                         // 가격 입력 프롬프트 (수량 입력 후)
                         const priceInput = prompt(`${name}의 가격을 입력하세요 (기본값: ${defaultPrice}원)\n가격을 입력하면 잔고에서 차감됩니다.`, defaultPrice);
-                        const price = priceInput !== null ? parseFloat(priceInput) || 0 : 0;
+                        const price = parseFloat(priceInput) || 0;
                         
                         this.addItem({
                             name: name,
@@ -678,11 +684,9 @@ export class InventoryModule {
                         
                         // 가격이 입력되면 잔고에서 차감
                         if (price > 0 && this.balanceModule) {
-                            const chatData = this.balanceModule.settings;
-                            const shopEnabled = chatData?.balance?.shopMode?.enabled;
                             this.balanceModule.addTransaction({
                                 type: "expense",
-                                source: shopEnabled ? "shop" : "personal",
+                                source: this.getShopModeEnabled() ? "shop" : "personal",
                                 category: "재료비",
                                 description: `재료 구매: ${name} ${parsedQty}${unit}`,
                                 amount: price,
@@ -785,11 +789,9 @@ export class InventoryModule {
             
             // 가격이 입력되면 잔고에서 차감
             if (price > 0 && this.balanceModule) {
-                const chatData = this.balanceModule.settings;
-                const shopEnabled = chatData?.balance?.shopMode?.enabled;
                 this.balanceModule.addTransaction({
                     type: "expense",
-                    source: shopEnabled ? "shop" : "personal",
+                    source: this.getShopModeEnabled() ? "shop" : "personal",
                     category: "재료비",
                     description: `재료 구매: ${name} ${qty}${unit}`,
                     amount: price,
