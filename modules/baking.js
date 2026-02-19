@@ -10,10 +10,59 @@ export class BakingModule {
     
     // Default ingredient prices (KRW) for fallback plan
     static DEFAULT_INGREDIENT_PRICES = {
-        FLOUR_PRICE_PER_GRAM: 10,    // 10원/g (약 1kg = 10,000원)
-        SUGAR_PRICE_PER_GRAM: 10,    // 10원/g (약 1kg = 10,000원)
-        BUTTER_PRICE_PER_GRAM: 20,   // 20원/g (약 200g = 4,000원)
-        EGG_PRICE_EACH: 300          // 300원/개
+        // 기본 재료 (Basic ingredients)
+        '밀가루': 10,         // 10원/g (약 1kg = 10,000원)
+        'FLOUR_PRICE_PER_GRAM': 10,    // 10원/g (약 1kg = 10,000원)
+        '설탕': 10,           // 10원/g (약 1kg = 10,000원)
+        'SUGAR_PRICE_PER_GRAM': 10,    // 10원/g (약 1kg = 10,000원)
+        '버터': 20,           // 20원/g (약 200g = 4,000원)
+        'BUTTER_PRICE_PER_GRAM': 20,   // 20원/g (약 200g = 4,000원)
+        '달걀': 300,          // 300원/개
+        'EGG_PRICE_EACH': 300,         // 300원/개
+        
+        // 유제품 (Dairy)
+        '우유': 2,            // 2원/ml (1L = 2,000원)
+        '생크림': 6,          // 6원/ml (200ml = 1,200원)
+        '크림치즈': 25,       // 25원/g (200g = 5,000원)
+        '마스카르포네': 30,   // 30원/g (250g = 7,500원)
+        '요거트': 3,          // 3원/g (500g = 1,500원)
+        
+        // 제빵용 재료 (Baking ingredients)
+        '아몬드가루': 40,     // 40원/g (200g = 8,000원)
+        '코코아파우더': 30,   // 30원/g (200g = 6,000원)
+        '베이킹파우더': 15,   // 15원/g (100g = 1,500원)
+        '베이킹소다': 10,     // 10원/g (100g = 1,000원)
+        '바닐라익스트랙': 100, // 100원/ml (30ml = 3,000원)
+        '바닐라에센스': 50,   // 50원/ml (30ml = 1,500원)
+        '소금': 2,            // 2원/g (500g = 1,000원)
+        '이스트': 20,         // 20원/g (50g = 1,000원)
+        '젤라틴': 60,         // 60원/g (20g = 1,200원)
+        
+        // 초콜릿 (Chocolate)
+        '다크초콜릿': 35,     // 35원/g (200g = 7,000원)
+        '밀크초콜릿': 30,     // 30원/g (200g = 6,000원)
+        '화이트초콜릿': 35,   // 35원/g (200g = 7,000원)
+        '초콜릿칩': 30,       // 30원/g (200g = 6,000원)
+        
+        // 과일 및 견과류 (Fruits & Nuts)
+        '딸기': 30,           // 30원/g (500g = 15,000원)
+        '블루베리': 50,       // 50원/g (200g = 10,000원)
+        '레몬': 3000,         // 3,000원/개
+        '라즈베리': 60,       // 60원/g (125g = 7,500원)
+        '아몬드': 35,         // 35원/g (200g = 7,000원)
+        '호두': 40,           // 40원/g (200g = 8,000원)
+        
+        // 기타 (Others)
+        '꿀': 20,             // 20원/g (500g = 10,000원)
+        '메이플시럽': 30,     // 30원/ml (200ml = 6,000원)
+        '연유': 10,           // 10원/g (400g = 4,000원)
+        '카라멜': 25,         // 25원/g (200g = 5,000원)
+        '식용색소': 50,       // 50원/ml (10ml = 500원)
+        
+        // Default fallback for unknown ingredients
+        'DEFAULT_PER_GRAM': 15,        // 15원/g for weight-based unknown ingredients
+        'DEFAULT_PER_ML': 10,          // 10원/ml for volume-based unknown ingredients
+        'DEFAULT_PER_PIECE': 500       // 500원/개 for count-based unknown ingredients
     };
     
     constructor(settings, saveCallback, getGlobalSettings, getRpDate, inventoryModule, instagramModule = null) {
@@ -538,14 +587,16 @@ export class BakingModule {
     // 구매 리스트 항목 렌더링
     renderShoppingListItem(item, locationId, currentLocation) {
         const newLocation = currentLocation === "온라인" ? "시장/마트" : "온라인";
+        const isUnpriced = !item.price || item.price === 0;
         
         return `
-            <div class="sstssd-shopping-item" data-item-id="${item.id}">
+            <div class="sstssd-shopping-item ${isUnpriced ? 'sstssd-shopping-item-unpriced' : ''}" data-item-id="${item.id}">
                 <div class="sstssd-shopping-item-main">
                     <span class="sstssd-shopping-checkbox">⬜</span>
                     <div class="sstssd-shopping-item-info">
                         <div class="sstssd-shopping-item-name">
                             ${this.escapeHtml(item.name)} ${item.qty}${item.unit}
+                            ${isUnpriced ? '<span class="sstssd-price-unconfirmed">💡 가격 미확인</span>' : ''}
                         </div>
                         ${item.sources.length > 0 ? `
                             <div class="sstssd-shopping-item-sources">
@@ -553,17 +604,17 @@ export class BakingModule {
                             </div>
                         ` : ''}
                     </div>
-                    <span class="sstssd-shopping-price">${this.formatCurrency(item.price)}</span>
+                    <span class="sstssd-shopping-price">${isUnpriced ? '직접 입력 필요' : this.formatCurrency(item.price)}</span>
                 </div>
                 <div class="sstssd-shopping-item-actions">
                     <button class="sstssd-btn sstssd-btn-xs" 
                             data-action="edit-shopping-qty" 
                             data-location-id="${locationId}" 
                             data-item-id="${item.id}">수량 수정</button>
-                    <button class="sstssd-btn sstssd-btn-xs" 
+                    <button class="sstssd-btn sstssd-btn-xs ${isUnpriced ? 'sstssd-btn-warning' : ''}" 
                             data-action="edit-shopping-price" 
                             data-location-id="${locationId}" 
-                            data-item-id="${item.id}">가격 수정</button>
+                            data-item-id="${item.id}">${isUnpriced ? '가격 입력' : '가격 수정'}</button>
                     <button class="sstssd-btn sstssd-btn-xs" 
                             data-action="delete-shopping-item" 
                             data-location-id="${locationId}" 
@@ -932,15 +983,22 @@ ingredients:
                 for (const ingMatch of ingMatches) {
                     // Round to 2 decimal places to avoid precision issues
                     const qty = Math.round(parseFloat(ingMatch[2]) * 100) / 100;
+                    const name = ingMatch[1];
+                    const unit = ingMatch[3];
+                    
                     const ingredient = {
-                        name: ingMatch[1],
+                        name: name,
                         qty: qty,
-                        unit: ingMatch[3]
+                        unit: unit
                     };
-                    // Add estimatedPrice if present
+                    
+                    // Add estimatedPrice if present, otherwise calculate from defaults
                     if (ingMatch[4]) {
                         ingredient.estimatedPrice = parseInt(ingMatch[4]);
+                    } else {
+                        ingredient.estimatedPrice = this.estimateIngredientPrice(name, qty, unit);
                     }
+                    
                     ingredients.push(ingredient);
                 }
             }
@@ -950,6 +1008,37 @@ ingredients:
             console.error('Failed to parse AI response:', error);
             return null;
         }
+    }
+    
+    // Estimate ingredient price from defaults
+    estimateIngredientPrice(name, qty, unit) {
+        const prices = BakingModule.DEFAULT_INGREDIENT_PRICES;
+        
+        // Try exact name match first
+        if (prices[name] !== undefined) {
+            return Math.round(qty * prices[name]);
+        }
+        
+        // Try partial match (case insensitive)
+        const nameLower = name.toLowerCase();
+        for (const [key, value] of Object.entries(prices)) {
+            if (key.toLowerCase().includes(nameLower) || nameLower.includes(key.toLowerCase())) {
+                return Math.round(qty * value);
+            }
+        }
+        
+        // Fallback based on unit
+        const unitLower = unit.toLowerCase();
+        if (unitLower === 'g' || unitLower === '그램') {
+            return Math.round(qty * prices.DEFAULT_PER_GRAM);
+        } else if (unitLower === 'ml' || unitLower === '밀리리터') {
+            return Math.round(qty * prices.DEFAULT_PER_ML);
+        } else if (unitLower === '개' || unitLower === 'ea' || unitLower === 'piece') {
+            return Math.round(qty * prices.DEFAULT_PER_PIECE);
+        }
+        
+        // Last resort: assume weight-based
+        return Math.round(qty * prices.DEFAULT_PER_GRAM);
     }
     
     // 기본 계획 생성 (AI 실패 시)
