@@ -452,8 +452,11 @@ export class BakingModule {
                 this.settings.baking.bakingHistory = this.settings.baking.bakingHistory.slice(0, 30);
             }
             
-            recipe.status = 'completed';
+            // Reset recipe to pending so it can be reused
+            recipe.status = 'pending';
             recipe.currentStep = null;
+            recipe.multiplier = null;
+            recipe.startedAt = null;
             
             this.saveCallback();
             
@@ -545,12 +548,6 @@ export class BakingModule {
         
         // Check if baking is complete (PCT = 100%)
         if (bakeTagData.pct >= 100) {
-            // Skip if already completed
-            if (recipe.status === 'completed') {
-                console.log('SSTSSD: Recipe already completed, skipping:', recipe.name);
-                return;
-            }
-            
             console.log('SSTSSD: Baking complete detected, finalizing:', recipe.name);
             
             // Mark all steps as completed
@@ -560,13 +557,13 @@ export class BakingModule {
                 });
             }
             
-            // Call completeStep to finalize (will deduct ingredients and add product)
+            // Call completeStep to finalize (will deduct ingredients, add product, reset to pending)
             const lastStepIndex = recipe.steps ? recipe.steps.length - 1 : -1;
             if (lastStepIndex >= 0) {
                 this.completeStep(recipe.id, lastStepIndex);
             } else {
                 // No steps defined, manually complete
-                recipe.status = 'completed';
+                recipe.status = 'pending';
                 this.saveCallback();
             }
         } else {
