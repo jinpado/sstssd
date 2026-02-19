@@ -20,9 +20,12 @@ const SALE_REGEX = /<SALE>(.+?)\|(\d+)\|(\d+)\s*<\/SALE>/g;
 const GIFT_REGEX = /<GIFT>(.+?)\|(\d+)\|(.+?)\s*<\/GIFT>/g;
 const BAKE_REGEX = /<BAKE>(.+?)\|(\d+)(?:\|(.+?))?\s*<\/BAKE>/g;
 const SHOP_REGEX = /<SHOP>(.+?)\|(\d+)\|(.+?)\|(\d+)(?:\|(.+?))?\s*<\/SHOP>/g;
+// SHOP_DETAILED_REGEX: Enhanced shopping list with detailed items
+// Example: <SHOP>[STORE]학교 앞 마트[/STORE][WHEN]작업 전[/WHEN][ITEMS]🔸 아몬드 가루 — 200g — 4,500원[/ITEMS][TOTAL]22,000원[/TOTAL]</SHOP>
+const SHOP_DETAILED_REGEX = /<SHOP>\s*\[STORE\]([\s\S]*?)\[\/STORE\]\s*\[WHEN\]([\s\S]*?)\[\/WHEN\]\s*\[ITEMS\]([\s\S]*?)\[\/ITEMS\]\s*\[TOTAL\]([\s\S]*?)\[\/TOTAL\]\s*<\/SHOP>/g;
 // BAKE_STATUS_REGEX: Enhanced baking progress tracking
 // Example: <BAKE>[MENU]딸기 타르트 ×6개[/MENU][START]2024-01-15 14:00[/START][END]2024-01-15 16:00[/END][STEPS]✅ ✅ 🔄 ⬜ ⬜[/STEPS][PCT]60[/PCT]</BAKE>
-const BAKE_STATUS_REGEX = /<BAKE>\s*\[MENU\](.+?)\[\/MENU\]\s*\[START\](.+?)\[\/START\]\s*\[END\](.+?)\[\/END\]\s*\[STEPS\](.+?)\[\/STEPS\]\s*\[PCT\](\d+)\[\/PCT\]\s*<\/BAKE>/g;
+const BAKE_STATUS_REGEX = /<BAKE>\s*\[MENU\]([\s\S]+?)\[\/MENU\]\s*\[START\]([\s\S]+?)\[\/START\]\s*\[END\]([\s\S]+?)\[\/END\]\s*\[STEPS\]([\s\S]+?)\[\/STEPS\]\s*\[PCT\](\d+)%?\[\/PCT\]\s*<\/BAKE>/g;
 
 // Extension state
 let panelElement = null;
@@ -904,7 +907,92 @@ function initObserver() {
                             }
                         }
                         
-                        // Parse SHOP tags (shopping items from AI)
+                        // Parse SHOP_DETAILED tags (detailed shopping lists from AI)
+                        const shopDetailedMatches = text.matchAll(SHOP_DETAILED_REGEX);
+                        for (const match of shopDetailedMatches) {
+                            const store = match[1].trim();
+                            const when = match[2].trim();
+                            const itemsText = match[3].trim();
+                            const totalText = match[4].trim();
+                            
+                            if (bakingModule) {
+                                console.log(`SSTSSD: Auto-detected detailed shopping list from ${store}`);
+                                
+                                // Parse ITEMS - each line format: "🔸 name — qty unit — price원"
+                                const parsedItems = [];
+                                const itemLines = itemsText.split('\n').filter(l => l.trim());
+                                
+                                for (const line of itemLines) {
+                                    const trimmed = line.trim();
+                                    // Try regex first: /🔸\s*(.+?)\s*—\s*(\d+(?:\.\d+)?)\s*(\S+)\s*—\s*([\d,]+)원/
+                                    const itemMatch = trimmed.match(/🔸\s*(.+?)\s*—\s*(\d+(?:\.\d+)?)\s*(\S+)\s*—\s*([\d,]+)원/);
+                                    if (itemMatch) {
+                                        parsedItems.push({
+                                            name: itemMatch[1].trim(),
+                                            qty: parseFloat(itemMatch[2]),
+                                            unit: itemMatch[3].trim(),
+                                            price: parseInt(itemMatch[4].replace(/,/g, ''))
+                                        });
+                                    } else {
+                                        // Fallback: split by —
+                                        const parts = trimmed.replace(/^🔸\s*/, '').split('—').map(p => p.trim());
+                                        if (parts.length >= 3) {
+                                            // parts[0] = name, parts[1] = "200g", parts[2] = "4,500원"
+                                            const qtyUnitMatch = parts[1].match(/(\d+(?:\.\d+)?)\s*(\S+)/);
+                                            const priceMatch = parts[2].match(/([\d,]+)원/);
+                                            
+                                            if (qtyUnitMatch && priceMatch) {
+                                                parsedItems.push({
+                                                    name: parts[0],
+                                                    qty: parseFloat(qtyUnitMatch[1]),
+                                                    unit: qtyUnitMatch[2],
+                                                    price: parseInt(priceMatch[1].replace(/,/g, ''))
+                                                });
+                                            }
+                                        }
+                                    }
+                                }
+                                
+                                // Parse TOTAL - extract number from "22,000원" format
+                                const totalMatch = totalText.match(/([\d,]+)원/);
+                                const totalPrice = totalMatch ? parseInt(totalMatch[1].replace(/,/g, '')) : 0;
+                                
+                                // Find currently in-progress recipe to link
+                                let linkedRecipe = null;
+                                if (bakingModule.settings.baking && bakingModule.settings.baking.recipes) {
+                                    linkedRecipe = bakingModule.settings.baking.recipes.find(r => r.status === 'in_progress');
+                                }
+                                
+                                // Add to shopping list using new structure
+                                if (parsedItems.length > 0) {
+                                    bakingModule.addDetailedShoppingList({
+                                        items: parsedItems,
+                                        totalPrice: totalPrice,
+                                        store: store,
+                                        when: when,
+                                        linkedRecipe: linkedRecipe ? linkedRecipe.id : null,
+                                        status: "pending"
+                                    });
+                                    
+                                    // If there's a linked recipe, update its ingredients (only if empty)
+                                    if (linkedRecipe) {
+                                        if (!linkedRecipe.ingredients || linkedRecipe.ingredients.length === 0) {
+                                            linkedRecipe.ingredients = parsedItems.map(item => ({
+                                                name: item.name,
+                                                qty: item.qty,
+                                                unit: item.unit,
+                                                price: item.price
+                                            }));
+                                            bakingModule.saveCallback();
+                                        }
+                                    }
+                                    
+                                    renderAllModules();
+                                }
+                            }
+                        }
+                        
+                        // Parse SHOP tags (shopping items from AI - legacy format)
                         const shopMatches = text.matchAll(SHOP_REGEX);
                         const shopItems = [];
                         for (const match of shopMatches) {

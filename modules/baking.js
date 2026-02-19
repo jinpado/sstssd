@@ -233,6 +233,79 @@ export class BakingModule {
         return { success: true };
     }
     
+    // 레시피 완료 (사이드바 "완료" 버튼용)
+    completeRecipe(recipeId) {
+        const recipe = this.settings.baking.recipes.find(r => r.id === recipeId);
+        if (!recipe) {
+            return { success: false, error: "레시피를 찾을 수 없습니다" };
+        }
+        
+        const multiplier = recipe.multiplier || 1;
+        
+        // 1. 재료 차감 (보유 시에만)
+        if (this.inventoryModule && recipe.ingredients && recipe.ingredients.length > 0) {
+            for (const ingredient of recipe.ingredients) {
+                const requiredQty = ingredient.qty * multiplier;
+                const item = this.inventoryModule.settings.inventory.items.find(i => 
+                    i.name === ingredient.name && i.type === "ingredient"
+                );
+                
+                if (item && item.qty >= requiredQty) {
+                    this.inventoryModule.changeItemQty(
+                        ingredient.name,
+                        -requiredQty,
+                        `${recipe.name} 제작`,
+                        "baking"
+                    );
+                }
+            }
+        }
+        
+        // 2. 완제품 재고 추가
+        if (this.inventoryModule) {
+            this.inventoryModule.addProduct({
+                name: recipe.name,
+                qty: recipe.yieldQty * multiplier,
+                unit: recipe.yieldUnit,
+                reason: `${recipe.name} ×${recipe.yieldQty * multiplier} 제작 완료`
+            });
+        }
+        
+        // 3. 이력 기록
+        const totalCost = recipe.ingredients ? 
+            recipe.ingredients.reduce((sum, i) => sum + (i.price || 0), 0) : 0;
+        
+        const historyEntry = {
+            id: ++this.idCounter,
+            recipeName: recipe.name,
+            yieldQty: recipe.yieldQty * multiplier,
+            yieldUnit: recipe.yieldUnit,
+            steps: recipe.steps ? [...recipe.steps] : [],
+            ingredients: recipe.ingredients ? [...recipe.ingredients] : [],
+            totalCost: totalCost * multiplier,
+            date: this.formatDate(this.getRpDate())
+        };
+        this.settings.baking.bakingHistory.unshift(historyEntry);
+        
+        // 이력은 최근 30건만 유지
+        if (this.settings.baking.bakingHistory.length > 30) {
+            this.settings.baking.bakingHistory = this.settings.baking.bakingHistory.slice(0, 30);
+        }
+        
+        // 4. 레시피 상태 변경: completed로 변경 (완료된 레시피는 UI에서 자동으로 숨김 처리)
+        recipe.status = 'completed';
+        recipe.completedAt = this.formatDate(this.getRpDate());
+        
+        this.saveCallback();
+        
+        // 5. 인스타 업로드 여부 확인 (UI에서 처리 - 여기서는 플래그만 반환)
+        return { 
+            success: true, 
+            recipe: recipe,
+            showInstagramPrompt: true 
+        };
+    }
+    
     // Start step-by-step baking (separate from performBaking)
     startBaking(recipeId, multiplier = 1) {
         const recipe = this.settings.baking.recipes.find(r => r.id === recipeId);
@@ -478,7 +551,7 @@ export class BakingModule {
         const recipeName = menuText.replace(/\s*×.*$/, '').trim();
         
         // Find matching recipe by name with better matching logic
-        const recipe = this.settings.baking.recipes.find(r => {
+        let recipe = this.settings.baking.recipes.find(r => {
             if (r.status !== 'in_progress') return false;
             
             // Try exact match first
@@ -494,8 +567,39 @@ export class BakingModule {
         });
         
         if (!recipe) {
-            console.log('SSTSSD: No matching in-progress recipe for BAKE tag:', recipeName);
-            return;
+            console.log('SSTSSD: No matching in-progress recipe for BAKE tag, auto-creating:', recipeName);
+            
+            // Auto-create recipe from BAKE tag (QR direct start)
+            // Parse menu text for yield quantity: "마카롱(기본) × 30개" → yieldQty: 30, yieldUnit: "개"
+            const menuMatch = menuText.match(/(.+?)\s*[×x]\s*(\d+)\s*(개|판|호|세트|kg|g|ml)?/i);
+            let yieldQty = 1;
+            let yieldUnit = "개";
+            
+            if (menuMatch) {
+                yieldQty = parseInt(menuMatch[2]);
+                yieldUnit = menuMatch[3] || "개";
+            }
+            
+            // Create new recipe with AI-provided steps
+            const newRecipe = {
+                id: ++this.idCounter,
+                name: recipeName,
+                ingredients: [],  // Will be filled from SHOP tag
+                steps: bakeTagData.parsedSteps ? bakeTagData.parsedSteps.map(ps => ({
+                    name: ps.name || '단계',
+                    estimatedTime: ps.estimatedTime || '',
+                    status: ps.status || 'pending'
+                })) : [],
+                yieldQty: yieldQty,
+                yieldUnit: yieldUnit,
+                deadline: null,
+                status: "in_progress",
+                createdAt: this.formatDate(this.getRpDate())
+            };
+            
+            this.settings.baking.recipes.push(newRecipe);
+            recipe = newRecipe;
+            console.log('SSTSSD: Auto-created recipe from BAKE tag:', recipe);
         }
         
         // Handle new detailed steps format from AI
@@ -655,6 +759,32 @@ export class BakingModule {
         this.saveCallback();
     }
     
+    // 구매 리스트 추가 (상세 형식 - SHOP 태그용)
+    addDetailedShoppingList(data) {
+        const newList = {
+            id: ++this.idCounter,
+            location: data.store || "온라인",
+            store: data.store || "온라인",
+            when: data.when || "",
+            items: data.items.map(item => ({
+                id: ++this.idCounter,
+                name: item.name,
+                qty: item.qty,
+                unit: item.unit,
+                price: item.price,
+                sources: ["AI 자동 감지"]
+            })),
+            totalPrice: data.totalPrice || data.items.reduce((sum, item) => sum + (item.price || 0), 0),
+            status: data.status || "pending",
+            linkedRecipe: data.linkedRecipe || null,
+            createdAt: this.formatDate(this.getRpDate())
+        };
+        
+        this.settings.baking.shoppingList.push(newList);
+        this.saveCallback();
+        return newList;
+    }
+    
     // 구매 리스트 항목 수정
     updateShoppingListItem(locationId, itemId, updates) {
         const locationList = this.settings.baking.shoppingList.find(list => list.id === locationId);
@@ -722,11 +852,11 @@ export class BakingModule {
     }
     
     // 장소별 구매 완료
-    completePurchase(locationId) {
+    async completePurchase(locationId) {
         const locationList = this.settings.baking.shoppingList.find(list => list.id === locationId);
         if (!locationList) return { success: false, error: "리스트를 찾을 수 없습니다" };
         
-        const location = locationList.location;
+        const location = locationList.location || locationList.store;
         const totalPrice = locationList.totalPrice;
         
         // 1. 재고에 전부 추가
@@ -776,20 +906,42 @@ export class BakingModule {
                 this.settings.balance.transactions = [];
             }
             
+            const linkedRecipeName = locationList.linkedRecipe ? 
+                (this.settings.baking.recipes.find(r => r.id === locationList.linkedRecipe)?.name || '') : '';
+            
             this.settings.balance.transactions.unshift({
                 id: ++this.idCounter,
                 type: "expense",
-                category: "재료 구매",
-                description: `재료 구매 (${location})`,
+                category: "재료비",
+                description: `재료 구매 (${linkedRecipeName ? linkedRecipeName + ' 준비' : location})`,
                 amount: totalPrice,
                 date: this.formatDate(this.getRpDate()),
-                source: shopEnabled ? "shop" : "personal"
+                source: shopEnabled ? "shop" : "personal",
+                memo: "구매 리스트 완료"
             });
         }
         
-        // 4. 구매 리스트에서 제거
-        const listIndex = this.settings.baking.shoppingList.findIndex(list => list.id === locationId);
-        this.settings.baking.shoppingList.splice(listIndex, 1);
+        // 4. QR 변수(inventory) 동기화
+        try {
+            const context = window.getContext?.() || (typeof SillyTavern !== 'undefined' ? SillyTavern.getContext() : null);
+            if (context?.executeSlashCommandsWithOptions && this.inventoryModule) {
+                const inventoryStr = this.inventoryModule.settings.inventory.items
+                    .filter(i => i.type === "ingredient")
+                    .map(i => `${i.name}:${i.qty}:${i.unit}`)
+                    .join(' ; ');
+                await context.executeSlashCommandsWithOptions(
+                    `/setvar key=inventory "${inventoryStr}"`
+                );
+                console.log('SSTSSD: QR inventory synced after purchase');
+            }
+        } catch (e) {
+            console.warn('SSTSSD: QR inventory sync failed', e);
+            // Graceful fallback - don't fail the purchase
+        }
+        
+        // 5. 구매 리스트 상태 업데이트 (삭제 대신 상태 변경)
+        locationList.status = "purchased";
+        locationList.purchasedAt = this.formatDate(this.getRpDate());
         
         this.saveCallback();
         return { success: true, totalPrice, itemCount: locationList.items.length };
@@ -922,13 +1074,19 @@ export class BakingModule {
             const currentStep = recipe.currentStep || 0;
             const completedSteps = recipe.steps.filter(s => s.status === 'completed').length;
             const progressPercent = (completedSteps / recipe.steps.length) * 100;
+            const isComplete = progressPercent >= 100;
+            
+            // Find linked shopping list
+            const linkedShoppingList = this.settings.baking.shoppingList.find(
+                list => list.linkedRecipe === recipe.id && list.status === 'pending'
+            );
             
             return `
                 <div class="sstssd-baking-item sstssd-baking-in-progress" data-id="${recipe.id}">
                     <div class="sstssd-baking-header">
                         <span class="sstssd-baking-name">${this.escapeHtml(recipe.name)}</span>
                         <span class="sstssd-baking-yield">(×${recipe.yieldQty * multiplier}${recipe.yieldUnit})</span>
-                        <span class="sstssd-baking-status">🔄 진행 중</span>
+                        <span class="sstssd-baking-status">${isComplete ? '✅ 완료 가능' : '🔄 진행 중'}</span>
                     </div>
                     
                     <div class="sstssd-baking-progress-bar">
@@ -940,7 +1098,17 @@ export class BakingModule {
                         ${recipe.steps.map((step, idx) => this.renderStepItem(recipe, step, idx)).join('')}
                     </div>
                     
+                    ${linkedShoppingList ? `
+                        <div class="sstssd-recipe-shopping-list">
+                            <div class="sstssd-section-title">🛒 구매 필요</div>
+                            ${this.renderShoppingListLocation(linkedShoppingList)}
+                        </div>
+                    ` : ''}
+                    
                     <div class="sstssd-baking-actions">
+                        ${isComplete ? `
+                            <button class="sstssd-btn sstssd-btn-sm sstssd-btn-success" data-action="complete-recipe" data-id="${recipe.id}">✅ 완료</button>
+                        ` : ''}
                         <button class="sstssd-btn sstssd-btn-sm sstssd-btn-danger" data-action="cancel-step-baking" data-id="${recipe.id}">❌ 취소</button>
                     </div>
                 </div>
@@ -1035,7 +1203,7 @@ export class BakingModule {
     
     // 구매 리스트 렌더링
     renderShoppingList() {
-        const shoppingList = this.settings.baking.shoppingList || [];
+        const shoppingList = (this.settings.baking.shoppingList || []).filter(list => list.status === 'pending');
         
         if (shoppingList.length === 0) {
             return '';
@@ -1050,7 +1218,7 @@ export class BakingModule {
                 
                 <div class="sstssd-shopping-total">
                     <span>총 예상:</span>
-                    <span class="sstssd-amount">${this.formatCurrency(totalPrice)}</span>
+                    <span class="sstssd-amount">${this.formatCurrency(totalPrice)}원</span>
                 </div>
                 
                 <div class="sstssd-shopping-actions">
@@ -1063,22 +1231,27 @@ export class BakingModule {
     
     // 장소별 구매 리스트 렌더링
     renderShoppingListLocation(locationList) {
-        const locationIcon = locationList.location === "온라인" ? "🌐" : "🏪";
+        const locationIcon = (locationList.location || locationList.store) === "온라인" ? "🌐" : "🏪";
+        const locationName = locationList.store || locationList.location || "온라인";
+        const linkedRecipe = locationList.linkedRecipe ? 
+            this.settings.baking.recipes.find(r => r.id === locationList.linkedRecipe) : null;
         
         return `
             <div class="sstssd-shopping-location" data-location-id="${locationList.id}">
                 <div class="sstssd-shopping-location-header">
-                    ${locationIcon} ${this.escapeHtml(locationList.location)}
+                    ${locationIcon} ${this.escapeHtml(locationName)}
+                    ${linkedRecipe ? `<span class="sstssd-linked-recipe">→ ${this.escapeHtml(linkedRecipe.name)}</span>` : ''}
                 </div>
-                ${locationList.items.map(item => this.renderShoppingListItem(item, locationList.id, locationList.location)).join('')}
+                ${locationList.when ? `<div class="sstssd-shopping-when">⏰ ${this.escapeHtml(locationList.when)}</div>` : ''}
+                ${locationList.items.map(item => this.renderShoppingListItem(item, locationList.id, locationName)).join('')}
                 <div class="sstssd-shopping-subtotal">
-                    <span>소계:</span>
-                    <span class="sstssd-amount">${this.formatCurrency(locationList.totalPrice)}</span>
+                    <span>💰 총액:</span>
+                    <span class="sstssd-amount">${this.formatCurrency(locationList.totalPrice)}원</span>
                 </div>
                 <button class="sstssd-btn sstssd-btn-sm sstssd-btn-primary" 
                         data-action="complete-purchase" 
                         data-location-id="${locationList.id}">
-                    ${locationList.location} 구매 완료
+                    🛒 구매 완료
                 </button>
             </div>
         `;
@@ -1086,44 +1259,28 @@ export class BakingModule {
     
     // 구매 리스트 항목 렌더링
     renderShoppingListItem(item, locationId, currentLocation) {
-        const newLocation = currentLocation === "온라인" ? "시장/마트" : "온라인";
         const isUnpriced = !item.price || item.price === 0;
         
         return `
             <div class="sstssd-shopping-item ${isUnpriced ? 'sstssd-shopping-item-unpriced' : ''}" data-item-id="${item.id}">
                 <div class="sstssd-shopping-item-main">
-                    <span class="sstssd-shopping-checkbox">⬜</span>
+                    <span class="sstssd-shopping-bullet">🔸</span>
                     <div class="sstssd-shopping-item-info">
                         <div class="sstssd-shopping-item-name">
-                            ${this.escapeHtml(item.name)} ${item.qty}${item.unit}
+                            ${this.escapeHtml(item.name)} — ${item.qty}${item.unit}
                             ${isUnpriced ? '<span class="sstssd-price-unconfirmed">💡 가격 미확인</span>' : ''}
                         </div>
-                        ${item.sources.length > 0 ? `
+                        ${item.sources && item.sources.length > 0 ? `
                             <div class="sstssd-shopping-item-sources">
                                 └ ${item.sources.join(' + ')}
                             </div>
                         ` : ''}
                     </div>
-                    <span class="sstssd-shopping-price">${isUnpriced ? '직접 입력 필요' : this.formatCurrency(item.price)}</span>
+                    <span class="sstssd-shopping-price">${isUnpriced ? '직접 입력 필요' : this.formatCurrency(item.price) + '원'}</span>
                 </div>
                 <div class="sstssd-shopping-item-actions">
-                    <button class="sstssd-btn sstssd-btn-xs" 
-                            data-action="edit-shopping-qty" 
-                            data-location-id="${locationId}" 
-                            data-item-id="${item.id}">수량 수정</button>
-                    <button class="sstssd-btn sstssd-btn-xs ${isUnpriced ? 'sstssd-btn-warning' : ''}" 
-                            data-action="edit-shopping-price" 
-                            data-location-id="${locationId}" 
-                            data-item-id="${item.id}">${isUnpriced ? '가격 입력' : '가격 수정'}</button>
-                    <button class="sstssd-btn sstssd-btn-xs" 
-                            data-action="delete-shopping-item" 
-                            data-location-id="${locationId}" 
-                            data-item-id="${item.id}">삭제</button>
-                    <button class="sstssd-btn sstssd-btn-xs" 
-                            data-action="move-shopping-item" 
-                            data-location-id="${locationId}" 
-                            data-item-id="${item.id}"
-                            data-new-location="${newLocation}">장소 변경 →</button>
+                    <button class="sstssd-btn sstssd-btn-xs" data-action="edit-shopping-item" data-location-id="${locationId}" data-item-id="${item.id}">✏️</button>
+                    <button class="sstssd-btn sstssd-btn-xs" data-action="delete-shopping-item" data-location-id="${locationId}" data-item-id="${item.id}">🗑</button>
                 </div>
             </div>
         `;
@@ -1238,10 +1395,48 @@ export class BakingModule {
             });
         });
         
+        // 레시피 완료 버튼 (PCT 100% 도달 시)
+        const completeRecipeBtns = container.querySelectorAll('[data-action="complete-recipe"]');
+        completeRecipeBtns.forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const recipeId = parseInt(btn.dataset.id);
+                const recipe = this.settings.baking.recipes.find(r => r.id === recipeId);
+                if (!recipe) return;
+                
+                if (confirm(`🧁 ${recipe.name} 제작을 완료하시겠습니까?`)) {
+                    const result = this.completeRecipe(recipeId);
+                    if (result.success) {
+                        // Instagram upload prompt
+                        if (result.showInstagramPrompt && this.instagramModule) {
+                            const uploadToInsta = confirm(`📱 ${recipe.name} 완성!\n인스타그램에 올릴까요?`);
+                            if (uploadToInsta) {
+                                // Call Instagram module to create post
+                                if (typeof this.instagramModule.showAddPostModal === 'function') {
+                                    this.instagramModule.showAddPostModal(recipe.name);
+                                }
+                            }
+                        }
+                        
+                        alert(`✅ ${recipe.name} 완료!\n완제품 ${recipe.yieldQty}${recipe.yieldUnit} 재고에 추가되었습니다.`);
+                        this.render(container);
+                        
+                        // 재고 모듈도 다시 렌더링
+                        const inventoryContainer = document.querySelector('.sstssd-module[data-module="inventory"]');
+                        if (inventoryContainer && this.inventoryModule) {
+                            this.inventoryModule.render(inventoryContainer);
+                        }
+                    } else {
+                        alert('완료 실패: ' + result.error);
+                    }
+                }
+            });
+        });
+        
         // 구매 리스트 - 장소별 구매 완료 버튼
         const completePurchaseBtns = container.querySelectorAll('[data-action="complete-purchase"]');
         completePurchaseBtns.forEach(btn => {
-            btn.addEventListener('click', (e) => {
+            btn.addEventListener('click', async (e) => {
                 e.stopPropagation();
                 const locationId = parseInt(btn.dataset.locationId);
                 if (confirm('이 장소의 구매를 완료하시겠습니까?')) {
