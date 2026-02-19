@@ -54,6 +54,7 @@ let instagramModule = null;
 let observer = null;
 let currentChatId = null;
 const processedNodes = new WeakSet();  // Track processed DOM nodes to prevent duplicates
+const processedMessageIds = new Set();  // Track processed message IDs to prevent duplicates
 
 // Initialize extension settings
 function initSettings() {
@@ -722,7 +723,458 @@ function attachEventListeners() {
     }
 }
 
-// Initialize MutationObserver for chat monitoring
+// Parse all tag types from raw message text
+function parseTagsFromRawText(rawText) {
+    if (!rawText) return;
+    
+    let anyTagFound = false;
+    
+    // Parse BAKE_STATUS tags (detailed format with [MENU], [STEPS], [PCT])
+    const bakeStatusMatches = [...rawText.matchAll(BAKE_STATUS_REGEX)];
+    for (const match of bakeStatusMatches) {
+        const menu = match[1].trim();
+        const start = match[2].trim();
+        const end = match[3].trim();
+        const stepsStr = match[4].trim();
+        const pct = parseInt(match[5]);
+        
+        if (bakingModule) {
+            console.log(`SSTSSD: Auto-detected baking status (MESSAGE_RECEIVED): ${menu} ${pct}%`);
+            
+            const parsedSteps = [];
+            
+            // Try WI format first: status|name|time|note§step2§step3...
+            if (stepsStr.includes('§')) {
+                const wiSteps = stepsStr.split('§');
+                for (const wiStep of wiSteps) {
+                    const parts = wiStep.trim().split('|');
+                    if (parts.length >= 2) {
+                        const statusPart = parts[0].trim();
+                        let status = 'pending';
+                        let icon = '⬜';
+                        
+                        if (statusPart === '✅' || statusPart.includes('완료') || statusPart.includes('done')) {
+                            status = 'completed';
+                            icon = '✅';
+                        } else if (statusPart === '🔄' || statusPart.includes('진행') || statusPart.includes('progress')) {
+                            status = 'in_progress';
+                            icon = '🔄';
+                        } else if (statusPart === '⏸️' || statusPart.includes('일시정지') || statusPart.includes('pause')) {
+                            status = 'paused';
+                            icon = '⏸️';
+                        }
+                        
+                        parsedSteps.push({
+                            name: parts[1].trim(),
+                            estimatedTime: parts.length > 2 ? parts[2].trim() : '',
+                            status: status,
+                            icon: icon,
+                            note: parts.length > 3 ? parts[3].trim() : ''
+                        });
+                    }
+                }
+            } else {
+                // QR format: newline-separated or space-separated icons
+                let stepLines = stepsStr.split('\n').filter(l => l.trim());
+                
+                if (stepLines.length <= 1) {
+                    const singleLine = stepsStr.trim();
+                    const iconPattern = /[✅🔄⏸️⬜]/g;
+                    const icons = singleLine.match(iconPattern);
+                    if (icons && icons.length > 1) {
+                        stepLines = singleLine.split(/\s+/).filter(l => l.trim());
+                    }
+                }
+                
+                for (const line of stepLines) {
+                    const trimmed = line.trim();
+                    let status = 'pending';
+                    let icon = '⬜';
+                    
+                    if (trimmed.startsWith('✅')) {
+                        status = 'completed';
+                        icon = '✅';
+                    } else if (trimmed.startsWith('🔄')) {
+                        status = 'in_progress';
+                        icon = '🔄';
+                    } else if (trimmed.startsWith('⏸️')) {
+                        status = 'paused';
+                        icon = '⏸️';
+                    } else if (trimmed.startsWith('⬜')) {
+                        status = 'pending';
+                        icon = '⬜';
+                    }
+                    
+                    const withoutIcon = trimmed.replace(/^[✅🔄⏸️⬜]\s*/, '');
+                    if (withoutIcon) {
+                        const nameMatch = withoutIcon.match(/^(.+?)(?:\s*\((.+?)\))?$/);
+                        if (nameMatch) {
+                            parsedSteps.push({
+                                name: nameMatch[1].trim(),
+                                estimatedTime: nameMatch[2] ? nameMatch[2].trim() : '',
+                                status: status,
+                                icon: icon
+                            });
+                        }
+                    } else {
+                        parsedSteps.push({
+                            name: '',
+                            estimatedTime: '',
+                            status: status,
+                            icon: icon
+                        });
+                    }
+                }
+            }
+            
+            bakingModule.updateFromBakeTag({
+                menu: menu,
+                start: start,
+                end: end,
+                stepsText: stepsStr,
+                parsedSteps: parsedSteps,
+                pct: pct
+            });
+            
+            anyTagFound = true;
+        }
+    }
+    
+    // Parse SHOP_DETAILED tags
+    const shopDetailedMatches = [...rawText.matchAll(SHOP_DETAILED_REGEX)];
+    for (const match of shopDetailedMatches) {
+        const store = match[1].trim();
+        const when = match[2].trim();
+        const itemsText = match[3].trim();
+        const totalText = match[4].trim();
+        
+        if (bakingModule) {
+            console.log(`SSTSSD: Auto-detected detailed shopping list (MESSAGE_RECEIVED) from ${store}`);
+            
+            const parsedItems = [];
+            
+            if (itemsText.includes('§') && !itemsText.includes('🔸')) {
+                const wiItems = itemsText.split('§');
+                for (const wiItem of wiItems) {
+                    const parts = wiItem.trim().split('|');
+                    if (parts.length >= 2) {
+                        parsedItems.push({
+                            name: parts[0].trim(),
+                            qty: 1,
+                            unit: "개",
+                            price: parseInt(parts[1].replace(/[^\d]/g, '')) || 0
+                        });
+                    }
+                }
+            } else {
+                const itemLines = itemsText.split('\n').filter(l => l.trim());
+                
+                for (const line of itemLines) {
+                    const trimmed = line.trim();
+                    const itemMatch = trimmed.match(/🔸\s*(.+?)\s*—\s*(\d+(?:\.\d+)?)\s*(\S+)\s*—\s*([\d,]+)원/);
+                    if (itemMatch) {
+                        parsedItems.push({
+                            name: itemMatch[1].trim(),
+                            qty: parseFloat(itemMatch[2]),
+                            unit: itemMatch[3].trim(),
+                            price: parseInt(itemMatch[4].replace(/,/g, ''))
+                        });
+                    } else {
+                        const parts = trimmed.replace(/^🔸\s*/, '').split('—').map(p => p.trim());
+                        if (parts.length >= 3) {
+                            const qtyUnitMatch = parts[1].match(/(\d+(?:\.\d+)?)\s*(\S+)/);
+                            const priceMatch = parts[2].match(/([\d,]+)원/);
+                            
+                            if (qtyUnitMatch && priceMatch) {
+                                parsedItems.push({
+                                    name: parts[0],
+                                    qty: parseFloat(qtyUnitMatch[1]),
+                                    unit: qtyUnitMatch[2],
+                                    price: parseInt(priceMatch[1].replace(/,/g, ''))
+                                });
+                            }
+                        }
+                    }
+                }
+            }
+            
+            const totalMatch = totalText.match(/([\d,]+)원/);
+            const totalPrice = totalMatch ? parseInt(totalMatch[1].replace(/,/g, '')) : 0;
+            
+            let linkedRecipe = null;
+            if (bakingModule.settings.baking && bakingModule.settings.baking.recipes) {
+                let lastPending = null;
+                for (const recipe of bakingModule.settings.baking.recipes) {
+                    if (recipe.status === 'in_progress') {
+                        linkedRecipe = recipe;
+                        break;
+                    } else if (recipe.status === 'pending') {
+                        lastPending = recipe;
+                    }
+                }
+                if (!linkedRecipe && lastPending) {
+                    linkedRecipe = lastPending;
+                }
+            }
+            
+            if (parsedItems.length > 0) {
+                bakingModule.addDetailedShoppingList({
+                    items: parsedItems,
+                    totalPrice: totalPrice,
+                    store: store,
+                    when: when,
+                    linkedRecipe: linkedRecipe ? linkedRecipe.id : null,
+                    status: "pending"
+                });
+                
+                if (linkedRecipe) {
+                    if (!linkedRecipe.ingredients || linkedRecipe.ingredients.length === 0) {
+                        linkedRecipe.ingredients = parsedItems.map(item => ({
+                            name: item.name,
+                            qty: item.qty,
+                            unit: item.unit,
+                            price: item.price
+                        }));
+                        bakingModule.saveCallback();
+                    }
+                }
+                
+                anyTagFound = true;
+            }
+        }
+    }
+    
+    // Parse BANK tags
+    const bankMatches = [...rawText.matchAll(BANK_REGEX)];
+    for (const match of bankMatches) {
+        const balance = match[1].trim();
+        const savings = match[2].trim();
+        
+        if (balanceModule) {
+            console.log(`SSTSSD: Auto-detected BANK tag (MESSAGE_RECEIVED) - Balance: ${balance}, Savings: ${savings}`);
+            anyTagFound = true;
+        }
+    }
+    
+    // Parse TASKS tags
+    const tasksMatches = [...rawText.matchAll(TASKS_REGEX)];
+    for (const match of tasksMatches) {
+        const urgent = match[1].trim();
+        const week = match[2].trim();
+        const routine = match[3].trim();
+        const longterm = match[4].trim();
+        const done = match[5].trim();
+        
+        if (todoModule) {
+            console.log(`SSTSSD: Auto-detected TASKS tag (MESSAGE_RECEIVED)`);
+            
+            if (urgent) {
+                const urgentItems = urgent.split(';').map(t => t.trim()).filter(t => t);
+                for (const item of urgentItems) {
+                    const exists = todoModule.settings.todo.items.some(i => i.title === item);
+                    if (!exists) {
+                        const today = todoModule.getRpDate();
+                        todoModule.addItem({
+                            title: item,
+                            deadline: new Date(today.getTime() + MS_PER_DAY).toISOString().split('T')[0],
+                            estimatedTime: '',
+                            memo: 'AI 자동 감지 (긴급)'
+                        });
+                    }
+                }
+            }
+            
+            if (week) {
+                const weekItems = week.split(';').map(t => t.trim()).filter(t => t);
+                for (const item of weekItems) {
+                    const exists = todoModule.settings.todo.items.some(i => i.title === item);
+                    if (!exists) {
+                        const today = todoModule.getRpDate();
+                        todoModule.addItem({
+                            title: item,
+                            deadline: new Date(today.getTime() + 7 * MS_PER_DAY).toISOString().split('T')[0],
+                            estimatedTime: '',
+                            memo: 'AI 자동 감지 (이번 주)'
+                        });
+                    }
+                }
+            }
+            
+            anyTagFound = true;
+        }
+    }
+    
+    // Parse TIMELINE tags
+    const timelineMatches = [...rawText.matchAll(TIMELINE_REGEX)];
+    for (const match of timelineMatches) {
+        const day = match[1].trim();
+        const weather = match[2].trim();
+        const events = match[3].trim();
+        
+        if (scheduleModule) {
+            console.log(`SSTSSD: Auto-detected TIMELINE tag (MESSAGE_RECEIVED) for ${day}`);
+            
+            if (events) {
+                const eventList = events.split('§').map(e => e.trim()).filter(e => e);
+                for (const event of eventList) {
+                    const parts = event.split('|');
+                    if (parts.length >= 3) {
+                        const type = parts[0].trim();
+                        const timeRange = parts[1].trim();
+                        const title = parts[2].trim();
+                        const location = parts.length > 3 ? parts[3].trim() : '';
+                        
+                        const dateMatch = day.match(/(\d{4})\/(\d{2})\/(\d{2})/);
+                        if (dateMatch) {
+                            const eventDate = `${dateMatch[1]}-${dateMatch[2]}-${dateMatch[3]}`;
+                            
+                            const exists = scheduleModule.settings.schedule.appointments.some(a => 
+                                a.date === eventDate && a.title === title
+                            );
+                            if (!exists) {
+                                scheduleModule.addAppointment({
+                                    date: eventDate,
+                                    time: timeRange,
+                                    title: title,
+                                    location: location,
+                                    participants: '',
+                                    memo: `AI 자동 감지 (${type})`
+                                });
+                            }
+                        }
+                    }
+                }
+                anyTagFound = true;
+            }
+        }
+    }
+    
+    // Parse INVENTORY tags
+    const inventoryMatches = [...rawText.matchAll(INVENTORY_REGEX)];
+    for (const match of inventoryMatches) {
+        const items = match[1].trim();
+        const low = match[2].trim();
+        
+        if (inventoryModule) {
+            console.log(`SSTSSD: Auto-detected INVENTORY tag (MESSAGE_RECEIVED)`);
+            
+            if (low) {
+                const lowItems = low.split('§').map(i => i.trim()).filter(i => i);
+                for (const item of lowItems) {
+                    const parts = item.split(':');
+                    if (parts.length >= 2) {
+                        const name = parts[0].trim();
+                        const qty = parts[1].trim();
+                        console.warn(`SSTSSD: Low stock alert from AI - ${name}: ${qty}`);
+                    }
+                }
+            }
+            anyTagFound = true;
+        }
+    }
+    
+    // Parse FIN_IN tags (income)
+    const finInMatches = [...rawText.matchAll(FIN_IN_REGEX)];
+    for (const match of finInMatches) {
+        const description = match[1];
+        const amount = parseInt(match[2]);
+        if (balanceModule && amount > 0) {
+            console.log(`SSTSSD: Auto-detected income (MESSAGE_RECEIVED): ${description} ${amount}원`);
+            const chatData = getCurrentChatData();
+            const shopEnabled = chatData?.balance?.shopMode?.enabled;
+            balanceModule.addTransaction({
+                type: "income",
+                source: shopEnabled ? "shop" : "personal",
+                category: "자동감지",
+                description: description,
+                amount: amount,
+                memo: "AI 응답에서 자동 감지"
+            });
+            anyTagFound = true;
+        }
+    }
+    
+    // Parse FIN_OUT tags (expense)
+    const finOutMatches = [...rawText.matchAll(FIN_OUT_REGEX)];
+    for (const match of finOutMatches) {
+        const description = match[1];
+        const amount = parseInt(match[2]);
+        if (balanceModule && amount > 0) {
+            console.log(`SSTSSD: Auto-detected expense (MESSAGE_RECEIVED): ${description} ${amount}원`);
+            const chatData = getCurrentChatData();
+            const shopEnabled = chatData?.balance?.shopMode?.enabled;
+            balanceModule.addTransaction({
+                type: "expense",
+                source: shopEnabled ? "shop" : "personal",
+                category: "자동감지",
+                description: description,
+                amount: amount,
+                memo: "AI 응답에서 자동 감지"
+            });
+            anyTagFound = true;
+        }
+    }
+    
+    // Parse SALE tags (shop sales)
+    const saleMatches = [...rawText.matchAll(SALE_REGEX)];
+    for (const match of saleMatches) {
+        const menuName = match[1];
+        const quantity = parseInt(match[2]);
+        const unitPrice = parseInt(match[3]);
+        if (shopModule && quantity > 0 && unitPrice > 0) {
+            console.log(`SSTSSD: Auto-detected sale (MESSAGE_RECEIVED): ${menuName} ${quantity}개 @${unitPrice}원`);
+            const chatData = getCurrentChatData();
+            if (chatData?.balance?.shopMode?.enabled) {
+                shopModule.addSale({
+                    menuName: menuName,
+                    quantity: quantity,
+                    unitPrice: unitPrice
+                });
+                anyTagFound = true;
+            }
+        }
+    }
+    
+    // Parse GIFT tags (gifting products)
+    const giftMatches = [...rawText.matchAll(GIFT_REGEX)];
+    for (const match of giftMatches) {
+        const productName = match[1];
+        const quantity = parseInt(match[2]);
+        const recipient = match[3];
+        if (inventoryModule && quantity > 0) {
+            console.log(`SSTSSD: Auto-detected gift (MESSAGE_RECEIVED): ${productName} ${quantity}개 → ${recipient}`);
+            const product = inventoryModule.settings.inventory.items.find(i => 
+                i.name === productName && i.type === "product"
+            );
+            if (product) {
+                inventoryModule.updateItem(product.id, {
+                    qty: Math.max(0, product.qty - quantity),
+                    reason: `${recipient}에게 선물`,
+                    source: "gift"
+                });
+                anyTagFound = true;
+            }
+        }
+    }
+    
+    // Parse DATE tags
+    const dateMatch = rawText.match(/<DATE>(\d{4}-\d{2}-\d{2})<\/DATE>/);
+    if (dateMatch) {
+        const newDate = dateMatch[1];
+        if (isValidDateString(newDate)) {
+            console.log(`SSTSSD: Auto-detected roleplay date (MESSAGE_RECEIVED): ${newDate}`);
+            updateRpDate(newDate, 'auto');
+            anyTagFound = true;
+        }
+    }
+    
+    // Re-render all modules if any tag was found
+    if (anyTagFound) {
+        renderAllModules();
+    }
+}
+
+// Initialize MutationObserver for chat monitoring (fallback for DOM-visible tags only)
 function initObserver() {
     try {
         observer = new MutationObserver((mutations) => {
@@ -732,25 +1184,24 @@ function initObserver() {
                         processedNodes.add(node);
                         const text = node.textContent || '';
                         
-                        // Parse DATE tags from AI responses
+                        // Parse DATE tags from AI responses (fallback)
                         const dateMatch = text.match(/<DATE>(\d{4}-\d{2}-\d{2})<\/DATE>/);
                         if (dateMatch) {
                             const newDate = dateMatch[1];
-                            // Validate date
                             if (isValidDateString(newDate)) {
-                                console.log(`SSTSSD: Auto-detected roleplay date: ${newDate}`);
+                                console.log(`SSTSSD: Auto-detected roleplay date (DOM fallback): ${newDate}`);
                                 updateRpDate(newDate, 'auto');
                                 renderAllModules();
                             }
                         }
                         
-                        // Parse FIN_IN tags (income)
+                        // Parse FIN_IN tags (income) - fallback only
                         const finInMatches = text.matchAll(FIN_IN_REGEX);
                         for (const match of finInMatches) {
                             const description = match[1];
                             const amount = parseInt(match[2]);
                             if (balanceModule && amount > 0) {
-                                console.log(`SSTSSD: Auto-detected income: ${description} ${amount}원`);
+                                console.log(`SSTSSD: Auto-detected income (DOM fallback): ${description} ${amount}원`);
                                 const chatData = getCurrentChatData();
                                 const shopEnabled = chatData?.balance?.shopMode?.enabled;
                                 balanceModule.addTransaction({
@@ -765,13 +1216,13 @@ function initObserver() {
                             }
                         }
                         
-                        // Parse FIN_OUT tags (expense)
+                        // Parse FIN_OUT tags (expense) - fallback only
                         const finOutMatches = text.matchAll(FIN_OUT_REGEX);
                         for (const match of finOutMatches) {
                             const description = match[1];
                             const amount = parseInt(match[2]);
                             if (balanceModule && amount > 0) {
-                                console.log(`SSTSSD: Auto-detected expense: ${description} ${amount}원`);
+                                console.log(`SSTSSD: Auto-detected expense (DOM fallback): ${description} ${amount}원`);
                                 const chatData = getCurrentChatData();
                                 const shopEnabled = chatData?.balance?.shopMode?.enabled;
                                 balanceModule.addTransaction({
@@ -786,37 +1237,34 @@ function initObserver() {
                             }
                         }
                         
-                        // Parse SALE tags (shop sales)
+                        // Parse SALE tags (shop sales) - fallback only
                         const saleMatches = text.matchAll(SALE_REGEX);
                         for (const match of saleMatches) {
                             const menuName = match[1];
                             const quantity = parseInt(match[2]);
                             const unitPrice = parseInt(match[3]);
                             if (shopModule && quantity > 0 && unitPrice > 0) {
-                                console.log(`SSTSSD: Auto-detected sale: ${menuName} ${quantity}개 @${unitPrice}원`);
+                                console.log(`SSTSSD: Auto-detected sale (DOM fallback): ${menuName} ${quantity}개 @${unitPrice}원`);
                                 const chatData = getCurrentChatData();
                                 if (chatData?.balance?.shopMode?.enabled) {
-                                    // Use shopModule's default operator logic (will check shifts or use owner)
                                     shopModule.addSale({
                                         menuName: menuName,
                                         quantity: quantity,
                                         unitPrice: unitPrice
-                                        // operator: omitted to use default from getDefaultOperator()
                                     });
                                     renderAllModules();
                                 }
                             }
                         }
                         
-                        // Parse GIFT tags (gifting products)
+                        // Parse GIFT tags (gifting products) - fallback only
                         const giftMatches = text.matchAll(GIFT_REGEX);
                         for (const match of giftMatches) {
                             const productName = match[1];
                             const quantity = parseInt(match[2]);
                             const recipient = match[3];
                             if (inventoryModule && quantity > 0) {
-                                console.log(`SSTSSD: Auto-detected gift: ${productName} ${quantity}개 → ${recipient}`);
-                                // Find product in inventory
+                                console.log(`SSTSSD: Auto-detected gift (DOM fallback): ${productName} ${quantity}개 → ${recipient}`);
                                 const product = inventoryModule.settings.inventory.items.find(i => 
                                     i.name === productName && i.type === "product"
                                 );
@@ -828,402 +1276,6 @@ function initObserver() {
                                     });
                                     renderAllModules();
                                 }
-                            }
-                        }
-                        
-                        // Parse BAKE_STATUS tags (detailed format with [MENU], [STEPS], [PCT])
-                        // Supports both WI format (상태|단계명|시간|비고§구분) and QR format (newline-separated emoji steps)
-                        const bakeStatusMatches = text.matchAll(BAKE_STATUS_REGEX);
-                        for (const match of bakeStatusMatches) {
-                            const menu = match[1].trim();
-                            const start = match[2].trim();
-                            const end = match[3].trim();
-                            const stepsStr = match[4].trim();
-                            const pct = parseInt(match[5]);
-                            
-                            if (bakingModule) {
-                                console.log(`SSTSSD: Auto-detected baking status: ${menu} ${pct}%`);
-                                
-                                const parsedSteps = [];
-                                
-                                // Try WI format first: status|name|time|note§step2§step3...
-                                if (stepsStr.includes('§')) {
-                                    const wiSteps = stepsStr.split('§');
-                                    for (const wiStep of wiSteps) {
-                                        const parts = wiStep.trim().split('|');
-                                        if (parts.length >= 2) {
-                                            // parts[0] = status icon/text, parts[1] = name, parts[2] = time, parts[3] = note
-                                            const statusPart = parts[0].trim();
-                                            let status = 'pending';
-                                            let icon = '⬜';
-                                            
-                                            // Map status text or icon
-                                            if (statusPart === '✅' || statusPart.includes('완료') || statusPart.includes('done')) {
-                                                status = 'completed';
-                                                icon = '✅';
-                                            } else if (statusPart === '🔄' || statusPart.includes('진행') || statusPart.includes('progress')) {
-                                                status = 'in_progress';
-                                                icon = '🔄';
-                                            } else if (statusPart === '⏸️' || statusPart.includes('일시정지') || statusPart.includes('pause')) {
-                                                status = 'paused';
-                                                icon = '⏸️';
-                                            }
-                                            
-                                            parsedSteps.push({
-                                                name: parts[1].trim(),
-                                                estimatedTime: parts.length > 2 ? parts[2].trim() : '',
-                                                status: status,
-                                                icon: icon,
-                                                note: parts.length > 3 ? parts[3].trim() : ''
-                                            });
-                                        }
-                                    }
-                                } else {
-                                    // QR format: newline-separated or space-separated icons
-                                    let stepLines = stepsStr.split('\n').filter(l => l.trim());
-                                    
-                                    // If only one line and it contains multiple status icons, try splitting by spaces
-                                    if (stepLines.length <= 1) {
-                                        const singleLine = stepsStr.trim();
-                                        const iconPattern = /[✅🔄⏸️⬜]/g;
-                                        const icons = singleLine.match(iconPattern);
-                                        if (icons && icons.length > 1) {
-                                            // Split by icon boundaries
-                                            stepLines = singleLine.split(/\s+/).filter(l => l.trim());
-                                        }
-                                    }
-                                    
-                                    for (const line of stepLines) {
-                                        const trimmed = line.trim();
-                                        
-                                        // Detect status icon
-                                        let status = 'pending';
-                                        let icon = '⬜';
-                                        if (trimmed.startsWith('✅')) {
-                                            status = 'completed';
-                                            icon = '✅';
-                                        } else if (trimmed.startsWith('🔄')) {
-                                            status = 'in_progress';
-                                            icon = '🔄';
-                                        } else if (trimmed.startsWith('⏸️')) {
-                                            status = 'paused';
-                                            icon = '⏸️';
-                                        } else if (trimmed.startsWith('⬜')) {
-                                            status = 'pending';
-                                            icon = '⬜';
-                                        }
-                                        
-                                        // Extract step name and time if present
-                                        const withoutIcon = trimmed.replace(/^[✅🔄⏸️⬜]\s*/, '');
-                                        if (withoutIcon) {
-                                            // Try to extract name and time like "재료계량 (14:00~14:15)"
-                                            const nameMatch = withoutIcon.match(/^(.+?)(?:\s*\((.+?)\))?$/);
-                                            if (nameMatch) {
-                                                parsedSteps.push({
-                                                    name: nameMatch[1].trim(),
-                                                    estimatedTime: nameMatch[2] ? nameMatch[2].trim() : '',
-                                                    status: status,
-                                                    icon: icon
-                                                });
-                                            }
-                                        } else {
-                                            // Just an icon without text - still count as a step
-                                            parsedSteps.push({
-                                                name: '',
-                                                estimatedTime: '',
-                                                status: status,
-                                                icon: icon
-                                            });
-                                        }
-                                    }
-                                }
-                                
-                                bakingModule.updateFromBakeTag({
-                                    menu: menu,
-                                    start: start,
-                                    end: end,
-                                    stepsText: stepsStr,  // Keep original for backward compat
-                                    parsedSteps: parsedSteps,  // New detailed steps
-                                    pct: pct
-                                });
-                                
-                                // Only re-render if not at 100% (at 100% the updateFromBakeTag will handle it)
-                                if (pct < 100) {
-                                    renderAllModules();
-                                }
-                            }
-                        }
-                        
-                        // Parse SHOP_DETAILED tags (detailed shopping lists with [STORE], [ITEMS], [TOTAL])
-                        // Supports both WI format (품명|가격§구분) and QR format (🔸 item — qty — price원)
-                        const shopDetailedMatches = text.matchAll(SHOP_DETAILED_REGEX);
-                        for (const match of shopDetailedMatches) {
-                            const store = match[1].trim();
-                            const when = match[2].trim();
-                            const itemsText = match[3].trim();
-                            const totalText = match[4].trim();
-                            
-                            if (bakingModule) {
-                                console.log(`SSTSSD: Auto-detected detailed shopping list from ${store}`);
-                                
-                                const parsedItems = [];
-                                
-                                // Try WI format first: 품명|가격§구분 (with optional qty and unit defaults)
-                                if (itemsText.includes('§') && !itemsText.includes('🔸')) {
-                                    const wiItems = itemsText.split('§');
-                                    for (const wiItem of wiItems) {
-                                        const parts = wiItem.trim().split('|');
-                                        if (parts.length >= 2) {
-                                            // WI format: name|price (defaults to qty=1, unit='개' for generic items)
-                                            // Note: For specific units, use QR format with emoji and dash separator
-                                            parsedItems.push({
-                                                name: parts[0].trim(),
-                                                qty: 1,
-                                                unit: "개",  // Default unit for WI format (use QR format for specific units)
-                                                price: parseInt(parts[1].replace(/[^\d]/g, '')) || 0
-                                            });
-                                        }
-                                    }
-                                } else {
-                                    // QR format: each line format: "🔸 name — qty unit — price원"
-                                    const itemLines = itemsText.split('\n').filter(l => l.trim());
-                                    
-                                    for (const line of itemLines) {
-                                        const trimmed = line.trim();
-                                        // Try regex first: /🔸\s*(.+?)\s*—\s*(\d+(?:\.\d+)?)\s*(\S+)\s*—\s*([\d,]+)원/
-                                        const itemMatch = trimmed.match(/🔸\s*(.+?)\s*—\s*(\d+(?:\.\d+)?)\s*(\S+)\s*—\s*([\d,]+)원/);
-                                        if (itemMatch) {
-                                            parsedItems.push({
-                                                name: itemMatch[1].trim(),
-                                                qty: parseFloat(itemMatch[2]),
-                                                unit: itemMatch[3].trim(),
-                                                price: parseInt(itemMatch[4].replace(/,/g, ''))
-                                            });
-                                        } else {
-                                            // Fallback: split by —
-                                            const parts = trimmed.replace(/^🔸\s*/, '').split('—').map(p => p.trim());
-                                            if (parts.length >= 3) {
-                                                // parts[0] = name, parts[1] = "200g", parts[2] = "4,500원"
-                                                const qtyUnitMatch = parts[1].match(/(\d+(?:\.\d+)?)\s*(\S+)/);
-                                                const priceMatch = parts[2].match(/([\d,]+)원/);
-                                                
-                                                if (qtyUnitMatch && priceMatch) {
-                                                    parsedItems.push({
-                                                        name: parts[0],
-                                                        qty: parseFloat(qtyUnitMatch[1]),
-                                                        unit: qtyUnitMatch[2],
-                                                        price: parseInt(priceMatch[1].replace(/,/g, ''))
-                                                    });
-                                                } else {
-                                                    // Fallback failed too
-                                                    console.warn(`SSTSSD: Could not parse shopping item line: "${trimmed}". Expected QR format: "🔸 아몬드 가루 — 200g — 4,500원" or WI format: "품명|가격§구분" (qty/unit default to 1개)`);
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                                
-                                // Parse TOTAL - extract number from "22,000원" format
-                                const totalMatch = totalText.match(/([\d,]+)원/);
-                                const totalPrice = totalMatch ? parseInt(totalMatch[1].replace(/,/g, '')) : 0;
-                                
-                                // Find currently in-progress recipe to link, or fall back to most recent pending
-                                let linkedRecipe = null;
-                                if (bakingModule.settings.baking && bakingModule.settings.baking.recipes) {
-                                    // Prefer in_progress, then fall back to most recent pending (single pass)
-                                    let lastPending = null;
-                                    for (const recipe of bakingModule.settings.baking.recipes) {
-                                        if (recipe.status === 'in_progress') {
-                                            linkedRecipe = recipe;
-                                            break;
-                                        } else if (recipe.status === 'pending') {
-                                            lastPending = recipe;
-                                        }
-                                    }
-                                    if (!linkedRecipe && lastPending) {
-                                        linkedRecipe = lastPending;
-                                    }
-                                }
-                                
-                                // Add to shopping list using new structure
-                                if (parsedItems.length > 0) {
-                                    bakingModule.addDetailedShoppingList({
-                                        items: parsedItems,
-                                        totalPrice: totalPrice,
-                                        store: store,
-                                        when: when,
-                                        linkedRecipe: linkedRecipe ? linkedRecipe.id : null,
-                                        status: "pending"
-                                    });
-                                    
-                                    // If there's a linked recipe, update its ingredients (only if empty)
-                                    if (linkedRecipe) {
-                                        if (!linkedRecipe.ingredients || linkedRecipe.ingredients.length === 0) {
-                                            linkedRecipe.ingredients = parsedItems.map(item => ({
-                                                name: item.name,
-                                                qty: item.qty,
-                                                unit: item.unit,
-                                                price: item.price
-                                            }));
-                                            bakingModule.saveCallback();
-                                        }
-                                    }
-                                    
-                                    renderAllModules();
-                                }
-                            }
-                        }
-                        
-                        // Parse BANK tags (financial status with balance, savings, income/expense)
-                        const bankMatches = text.matchAll(BANK_REGEX);
-                        for (const match of bankMatches) {
-                            const balance = match[1].trim();
-                            const savings = match[2].trim();
-                            const goal = match[3].trim();
-                            const goalPct = match[4].trim();
-                            const inTotal = match[5].trim();
-                            const inList = match[6].trim();
-                            const outTotal = match[7].trim();
-                            const outList = match[8].trim();
-                            const net = match[9].trim();
-                            
-                            if (balanceModule) {
-                                console.log(`SSTSSD: Auto-detected BANK tag - Balance: ${balance}, Savings: ${savings}`);
-                                // Note: This is informational only for now. Future enhancement could sync with actual balance data.
-                                // For now, just log it so users know the tag was detected.
-                                // Could add validation to check if AI's reported balance matches actual balance.
-                            }
-                        }
-                        
-                        // Parse TASKS tags (to-do list with categorized items)
-                        const tasksMatches = text.matchAll(TASKS_REGEX);
-                        for (const match of tasksMatches) {
-                            const urgent = match[1].trim();
-                            const week = match[2].trim();
-                            const routine = match[3].trim();
-                            const longterm = match[4].trim();
-                            const done = match[5].trim();
-                            
-                            if (todoModule) {
-                                console.log(`SSTSSD: Auto-detected TASKS tag`);
-                                
-                                // Parse urgent items (semicolon-separated)
-                                if (urgent) {
-                                    const urgentItems = urgent.split(';').map(t => t.trim()).filter(t => t);
-                                    for (const item of urgentItems) {
-                                        // Check if item doesn't already exist
-                                        const exists = todoModule.settings.todo.items.some(i => i.title === item);
-                                        if (!exists) {
-                                            const today = todoModule.getRpDate();
-                                            todoModule.addItem({
-                                                title: item,
-                                                deadline: new Date(today.getTime() + MS_PER_DAY).toISOString().split('T')[0], // Tomorrow
-                                                estimatedTime: '',
-                                                memo: 'AI 자동 감지 (긴급)'
-                                            });
-                                        }
-                                    }
-                                }
-                                
-                                // Parse weekly items
-                                if (week) {
-                                    const weekItems = week.split(';').map(t => t.trim()).filter(t => t);
-                                    for (const item of weekItems) {
-                                        const exists = todoModule.settings.todo.items.some(i => i.title === item);
-                                        if (!exists) {
-                                            const today = todoModule.getRpDate();
-                                            todoModule.addItem({
-                                                title: item,
-                                                deadline: new Date(today.getTime() + 7 * MS_PER_DAY).toISOString().split('T')[0], // 1 week
-                                                estimatedTime: '',
-                                                memo: 'AI 자동 감지 (이번 주)'
-                                            });
-                                        }
-                                    }
-                                }
-                                
-                                // Note: routine and longterm items are informational only (don't auto-add to avoid clutter)
-                                // done items are also informational (they're already completed)
-                                
-                                renderAllModules();
-                            }
-                        }
-                        
-                        // Parse TIMELINE tags (schedule with day, weather, and events)
-                        const timelineMatches = text.matchAll(TIMELINE_REGEX);
-                        for (const match of timelineMatches) {
-                            const day = match[1].trim();
-                            const weather = match[2].trim();
-                            const events = match[3].trim();
-                            
-                            if (scheduleModule) {
-                                console.log(`SSTSSD: Auto-detected TIMELINE tag for ${day}`);
-                                
-                                // Parse events (format: 유형|시간범위|제목|장소§구분)
-                                if (events) {
-                                    const eventList = events.split('§').map(e => e.trim()).filter(e => e);
-                                    for (const event of eventList) {
-                                        const parts = event.split('|');
-                                        if (parts.length >= 3) {
-                                            const type = parts[0].trim();
-                                            const timeRange = parts[1].trim();
-                                            const title = parts[2].trim();
-                                            const location = parts.length > 3 ? parts[3].trim() : '';
-                                            
-                                            // Parse date from day (YYYY/MM/DD format)
-                                            const dateMatch = day.match(/(\d{4})\/(\d{2})\/(\d{2})/);
-                                            if (dateMatch) {
-                                                const eventDate = `${dateMatch[1]}-${dateMatch[2]}-${dateMatch[3]}`;
-                                                
-                                                // Check if appointment doesn't already exist
-                                                const exists = scheduleModule.settings.schedule.appointments.some(a => 
-                                                    a.date === eventDate && a.title === title
-                                                );
-                                                if (!exists) {
-                                                    scheduleModule.addAppointment({
-                                                        date: eventDate,
-                                                        time: timeRange,
-                                                        title: title,
-                                                        location: location,
-                                                        participants: '',
-                                                        memo: `AI 자동 감지 (${type})`
-                                                    });
-                                                }
-                                            }
-                                        }
-                                    }
-                                    renderAllModules();
-                                }
-                            }
-                        }
-                        
-                        // Parse INVENTORY tags (inventory check with items and low stock)
-                        const inventoryMatches = text.matchAll(INVENTORY_REGEX);
-                        for (const match of inventoryMatches) {
-                            const items = match[1].trim();
-                            const low = match[2].trim();
-                            
-                            if (inventoryModule) {
-                                console.log(`SSTSSD: Auto-detected INVENTORY tag`);
-                                
-                                // Parse items (format: 품명:수량:단위§구분)
-                                // Note: This is informational only for now. Auto-syncing inventory could be dangerous
-                                // as it might overwrite user's manual changes. Better to just log and let user review.
-                                
-                                if (low) {
-                                    // Parse low stock items for warning
-                                    const lowItems = low.split('§').map(i => i.trim()).filter(i => i);
-                                    for (const item of lowItems) {
-                                        const parts = item.split(':');
-                                        if (parts.length >= 2) {
-                                            const name = parts[0].trim();
-                                            const qty = parts[1].trim();
-                                            console.warn(`SSTSSD: Low stock alert from AI - ${name}: ${qty}`);
-                                        }
-                                    }
-                                }
-                                // Note: Not auto-updating inventory to avoid data conflicts
-                                // This is intentionally conservative to prevent accidental data loss
                             }
                         }
                     }
@@ -1286,6 +1338,7 @@ function buildDashboardPrompt() {
             inProgress.forEach(item => prompt += `- ${item.title} (${todoModule.calculateDday(item.deadline)})\n`);
         }
     }
+
     
     // Inventory
     if (inventoryModule && chatData.inventory) {
@@ -1431,8 +1484,8 @@ function buildDashboardPrompt() {
     if (chatData.balance?.shopMode?.enabled) {
         prompt += `<SALE>품명|수량|단가</SALE> — 판매 발생 시\n`;
     }
-    prompt += `<BAKE>메뉴명|수량|납품일(선택)</BAKE> — 베이킹 계획 시\n`;
-    prompt += `<SHOP>재료명|수량|단위|가격|장소(선택)</SHOP> — 재료 구매 필요 시\n`;
+    prompt += `<BAKE>[MENU]메뉴명|수량[/MENU][START]시작일시[/START][END]종료일시[/END][STEPS]상태|단계명|시간§구분[/STEPS][PCT]진행률[/PCT]</BAKE> — 베이킹 진행 시\n`;
+    prompt += `<SHOP>[STORE]구매장소[/STORE][WHEN]시점[/WHEN][ITEMS]품명|가격§구분[/ITEMS][TOTAL]합계금액[/TOTAL]</SHOP> — 재료 구매 필요 시\n`;
     
     return prompt;
 }
@@ -1500,6 +1553,38 @@ async function init() {
         eventSource.on(event_types.CHAT_CHANGED, () => {
             console.log('SSTSSD: Chat changed, reloading modules');
             reloadModules();
+        });
+
+        // Listen for MESSAGE_RECEIVED to parse tags from raw text BEFORE regex transformation
+        eventSource.on(event_types.MESSAGE_RECEIVED, (messageId) => {
+            try {
+                if (processedMessageIds.has(messageId)) return;
+                processedMessageIds.add(messageId);
+                if (processedMessageIds.size > 200) {
+                    const it = processedMessageIds.values();
+                    for (let i = 0; i < 100; i++) processedMessageIds.delete(it.next().value);
+                }
+                const context = getContext();
+                if (!context.chat || messageId === undefined) return;
+                const message = context.chat[messageId];
+                if (!message || !message.mes) return;
+                console.log('SSTSSD: MESSAGE_RECEIVED - parsing raw message');
+                parseTagsFromRawText(message.mes);
+            } catch (e) { console.error('SSTSSD: MESSAGE_RECEIVED error', e); }
+        });
+
+        // Listen for MESSAGE_UPDATED to re-parse updated messages
+        eventSource.on(event_types.MESSAGE_UPDATED, (messageId) => {
+            try {
+                processedMessageIds.delete(messageId);
+                const context = getContext();
+                if (!context.chat || messageId === undefined) return;
+                const message = context.chat[messageId];
+                if (!message || !message.mes) return;
+                console.log('SSTSSD: MESSAGE_UPDATED - re-parsing message');
+                parseTagsFromRawText(message.mes);
+                processedMessageIds.add(messageId);
+            } catch (e) { console.error('SSTSSD: MESSAGE_UPDATED error', e); }
         });
 
         console.log('SSTSSD: Side Dashboard extension initialized successfully');
