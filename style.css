@@ -2604,3 +2604,154 @@ textarea.sstssd-input {
     color: #fbbf24;
     font-size: 13px;
 }
+
+/* ===== Auto-sync and locked items ===== */
+.sstssd-recurring-locked {
+    background: linear-gradient(135deg, rgba(167, 139, 250, 0.05), rgba(139, 92, 246, 0.05));
+    border-left: 3px solid #a78bfa;
+}
+
+.sstssd-auto-sync-label {
+    color: #a78bfa;
+    font-size: 11px;
+    font-weight: 500;
+}
+
+.sstssd-locked-message {
+    color: #9ca3af;
+    font-size: 12px;
+    font-style: italic;
+}
+
+/* ===== Baking sections ===== */
+.sstssd-baking-section-in-progress {
+    border-left: 3px solid #fbbf24;
+    background: rgba(251, 191, 36, 0.05);
+    padding-left: 12px;
+    margin-bottom: 16px;
+}
+
+.sstssd-baking-section-pending {
+    margin-bottom: 16px;
+}
+
+.sstssd-baking-section-completed {
+    border-left: 3px solid #4ade80;
+    background: rgba(74, 222, 128, 0.05);
+    padding-left: 12px;
+    margin-bottom: 16px;
+}
+
+/* Baking progress bar */
+.sstssd-baking-progress-bar {
+    position: relative;
+    width: 100%;
+    height: 24px;
+    background: #1e1e3a;
+    border-radius: 12px;
+    overflow: hidden;
+    margin: 8px 0;
+}
+
+.sstssd-baking-progress-fill {
+    position: absolute;
+    top: 0;
+    left: 0;
+    height: 100%;
+    background: linear-gradient(90deg, #fbbf24, #f59e0b);
+    transition: width 0.3s ease;
+}
+
+.sstssd-baking-progress-text {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    color: #ffffff;
+    font-size: 12px;
+    font-weight: 600;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+    z-index: 1;
+}
+
+/* Baking in-progress item styling */
+.sstssd-baking-in-progress {
+    border: 2px solid #fbbf24;
+    background: rgba(251, 191, 36, 0.08);
+}
+
+.sstssd-baking-in-progress .sstssd-baking-header {
+    background: rgba(251, 191, 36, 0.1);
+    padding: 8px 12px;
+    margin: -12px -12px 12px -12px;
+    border-radius: 8px 8px 0 0;
+}
+
+/* Baking step status styles */
+.sstssd-baking-step {
+    padding: 8px;
+    border-radius: 6px;
+    background: #1e1e3a;
+    margin-bottom: 6px;
+}
+
+.sstssd-baking-step-current {
+    border: 2px solid #fbbf24;
+    background: rgba(251, 191, 36, 0.1);
+}
+
+.sstssd-baking-step-completed {
+    opacity: 0.7;
+    background: rgba(74, 222, 128, 0.1);
+}
+
+.sstssd-baking-step-in_progress {
+    border: 2px solid #3b82f6;
+    background: rgba(59, 130, 246, 0.1);
+}
+
+.sstssd-baking-step-paused {
+    border: 2px solid #9ca3af;
+    background: rgba(156, 163, 175, 0.1);
+}
+
+.sstssd-baking-step-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 4px;
+}
+
+.sstssd-baking-step-icon {
+    font-size: 16px;
+}
+
+.sstssd-baking-step-name {
+    flex: 1;
+    color: #e0e0e0;
+    font-size: 13px;
+}
+
+.sstssd-baking-step-time {
+    color: #9ca3af;
+    font-size: 12px;
+}
+
+.sstssd-baking-step-actions {
+    display: flex;
+    gap: 4px;
+    margin-top: 6px;
+}
+
+/* Start button styling */
+.sstssd-btn-start-baking {
+    background: linear-gradient(135deg, #4ade80, #22c55e);
+    color: #ffffff;
+    font-weight: 600;
+}
+
+.sstssd-btn-start-baking:hover {
+    background: linear-gradient(135deg, #22c55e, #16a34a);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(34, 197, 94, 0.3);
+}

@@ -20,6 +20,7 @@ const SALE_REGEX = /<SALE>(.+?)\|(\d+)\|(\d+)\s*<\/SALE>/g;
 const GIFT_REGEX = /<GIFT>(.+?)\|(\d+)\|(.+?)\s*<\/GIFT>/g;
 const BAKE_REGEX = /<BAKE>(.+?)\|(\d+)(?:\|(.+?))?\s*<\/BAKE>/g;
 const SHOP_REGEX = /<SHOP>(.+?)\|(\d+)\|(.+?)\|(\d+)(?:\|(.+?))?\s*<\/SHOP>/g;
+const BAKE_STATUS_REGEX = /<BAKE>\s*\[MENU\](.+?)\[\/MENU\]\s*\[START\](.+?)\[\/START\]\s*\[END\](.+?)\[\/END\]\s*\[STEPS\](.+?)\[\/STEPS\]\s*\[PCT\](\d+)\[\/PCT\]\s*<\/BAKE>/g;
 
 // Extension state
 let panelElement = null;
@@ -822,6 +823,36 @@ function initObserver() {
                                     deadline: deadline
                                 });
                                 renderAllModules();
+                            }
+                        }
+                        
+                        // Parse BAKE_STATUS tags (baking progress from AI)
+                        const bakeStatusMatches = text.matchAll(BAKE_STATUS_REGEX);
+                        for (const match of bakeStatusMatches) {
+                            const menu = match[1].trim();
+                            const start = match[2].trim();
+                            const end = match[3].trim();
+                            const stepsStr = match[4].trim();
+                            const pct = parseInt(match[5]);
+                            
+                            if (bakingModule) {
+                                console.log(`SSTSSD: Auto-detected baking status: ${menu} ${pct}%`);
+                                
+                                // Parse steps (e.g., "✅ ✅ 🔄 ⬜ ⬜")
+                                const stepIcons = stepsStr.split(/\s+/).filter(s => s.length > 0);
+                                
+                                bakingModule.updateFromBakeTag({
+                                    menu: menu,
+                                    start: start,
+                                    end: end,
+                                    steps: stepIcons,
+                                    pct: pct
+                                });
+                                
+                                // Only re-render if not at 100% (at 100% the updateFromBakeTag will handle it)
+                                if (pct < 100) {
+                                    renderAllModules();
+                                }
                             }
                         }
                         
