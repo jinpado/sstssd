@@ -272,16 +272,27 @@ export class InstagramModule {
                     r.min === snsIncome.minAmount && r.max === snsIncome.maxAmount
                 );
                 
+                // Update amounts
                 snsIncome.minAmount = incomeRange.min;
                 snsIncome.maxAmount = incomeRange.max;
+                
+                // Ensure required fields exist (migration for old data)
+                if (!snsIncome.name) snsIncome.name = '📱 인스타 수익';
+                if (!snsIncome.type) snsIncome.type = 'range';
+                if (!snsIncome.dayOfMonth && snsIncome.day) snsIncome.dayOfMonth = snsIncome.day;
+                if (!snsIncome.dayOfMonth) snsIncome.dayOfMonth = 25;
+                if (snsIncome.enabled === undefined) snsIncome.enabled = true;
             } else {
                 // Create SNS income if doesn't exist
                 balanceData.recurringIncome.push({
                     id: ++this.balanceModule.idCounter,
+                    name: '📱 인스타 수익',
+                    type: 'range',
                     source: 'SNS',
                     minAmount: incomeRange.min,
                     maxAmount: incomeRange.max,
-                    day: 25,  // Monthly on 25th
+                    dayOfMonth: 25,  // Monthly on 25th
+                    enabled: true,
                     createdAt: this.formatDate(this.getRpDate())
                 });
             }

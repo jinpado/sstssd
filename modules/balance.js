@@ -215,6 +215,12 @@ export class BalanceModule {
     }
 
     deleteRecurringIncome(id) {
+        const income = this.settings.balance.recurringIncome.find(i => i.id === id);
+        if (income && income.source === 'SNS') {
+            alert('인스타 연동 항목은 삭제할 수 없습니다');
+            return false;
+        }
+        
         const index = this.settings.balance.recurringIncome.findIndex(i => i.id === id);
         if (index !== -1) {
             this.settings.balance.recurringIncome.splice(index, 1);
