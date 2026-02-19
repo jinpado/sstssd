@@ -841,8 +841,14 @@ function initObserver() {
                             const pctText = match[5].trim();
                             const pct = parseInt(pctText.replace(/[^0-9]/g, '')) || 0;
                             
+                            // Validate PCT is in reasonable range
+                            if (pct < 0 || pct > 100) {
+                                console.warn(`SSTSSD: Invalid PCT value detected: ${pct} (from "${pctText}"). Clamping to 0-100 range.`);
+                            }
+                            const validatedPct = Math.max(0, Math.min(100, pct));
+                            
                             if (bakingModule) {
-                                console.log(`SSTSSD: Auto-detected baking status: ${menu} ${pct}%`);
+                                console.log(`SSTSSD: Auto-detected baking status: ${menu} ${validatedPct}%`);
                                 
                                 // Parse steps - can be either icon-only ("✅ ✅ 🔄") or detailed ("✅ 재료계량 (14:00~14:15)")
                                 const stepLines = stepsStr.split('\n').filter(l => l.trim());
@@ -898,11 +904,11 @@ function initObserver() {
                                     end: end,
                                     stepsText: stepsStr,  // Keep original for backward compat
                                     parsedSteps: parsedSteps,  // New detailed steps
-                                    pct: pct
+                                    pct: validatedPct
                                 });
                                 
                                 // Only re-render if not at 100% (at 100% the updateFromBakeTag will handle it)
-                                if (pct < 100) {
+                                if (validatedPct < 100) {
                                     renderAllModules();
                                 }
                             }
