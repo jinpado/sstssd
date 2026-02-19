@@ -413,9 +413,10 @@ export class BakingModule {
         };
         
         // Clear event after 5 seconds (to avoid stale events)
+        const eventTimestamp = this.settings.baking.currentEvent.timestamp;
         setTimeout(() => {
             if (this.settings.baking.currentEvent && 
-                this.settings.baking.currentEvent.timestamp === this.settings.baking.currentEvent.timestamp) {
+                this.settings.baking.currentEvent.timestamp === eventTimestamp) {
                 this.settings.baking.currentEvent = null;
             }
         }, 5000);
