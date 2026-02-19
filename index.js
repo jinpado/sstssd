@@ -840,14 +840,60 @@ function initObserver() {
                             if (bakingModule) {
                                 console.log(`SSTSSD: Auto-detected baking status: ${menu} ${pct}%`);
                                 
-                                // Parse steps (e.g., "✅ ✅ 🔄 ⬜ ⬜")
-                                const stepIcons = stepsStr.split(/\s+/).filter(s => s.length > 0);
+                                // Parse steps - can be either icon-only ("✅ ✅ 🔄") or detailed ("✅ 재료계량 (14:00~14:15)")
+                                const stepLines = stepsStr.split('\n').filter(l => l.trim());
+                                const parsedSteps = [];
+                                
+                                for (const line of stepLines) {
+                                    const trimmed = line.trim();
+                                    
+                                    // Detect status icon
+                                    let status = 'pending';
+                                    let icon = '⬜';
+                                    if (trimmed.startsWith('✅')) {
+                                        status = 'completed';
+                                        icon = '✅';
+                                    } else if (trimmed.startsWith('🔄')) {
+                                        status = 'in_progress';
+                                        icon = '🔄';
+                                    } else if (trimmed.startsWith('⏸️')) {
+                                        status = 'paused';
+                                        icon = '⏸️';
+                                    } else if (trimmed.startsWith('⬜')) {
+                                        status = 'pending';
+                                        icon = '⬜';
+                                    }
+                                    
+                                    // Extract step name and time if present
+                                    const withoutIcon = trimmed.replace(/^[✅🔄⏸️⬜]\s*/, '');
+                                    if (withoutIcon) {
+                                        // Try to extract name and time like "재료계량 (14:00~14:15)"
+                                        const nameMatch = withoutIcon.match(/^(.+?)(?:\s*\((.+?)\))?$/);
+                                        if (nameMatch) {
+                                            parsedSteps.push({
+                                                name: nameMatch[1].trim(),
+                                                estimatedTime: nameMatch[2] ? nameMatch[2].trim() : '',
+                                                status: status,
+                                                icon: icon
+                                            });
+                                        }
+                                    } else {
+                                        // Just an icon without text - still count as a step
+                                        parsedSteps.push({
+                                            name: '',
+                                            estimatedTime: '',
+                                            status: status,
+                                            icon: icon
+                                        });
+                                    }
+                                }
                                 
                                 bakingModule.updateFromBakeTag({
                                     menu: menu,
                                     start: start,
                                     end: end,
-                                    steps: stepIcons,
+                                    stepsText: stepsStr,  // Keep original for backward compat
+                                    parsedSteps: parsedSteps,  // New detailed steps
                                     pct: pct
                                 });
                                 
