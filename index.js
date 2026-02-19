@@ -839,13 +839,19 @@ function initObserver() {
                             const end = match[3].trim();
                             const stepsStr = match[4].trim();
                             const pctText = match[5].trim();
-                            const pct = parseInt(pctText.replace(/[^0-9]/g, '')) || 0;
+                            let pct = parseInt(pctText.replace(/[^0-9]/g, ''));
+                            
+                            // Handle NaN case (no digits found)
+                            if (isNaN(pct)) {
+                                console.warn(`SSTSSD: No valid digits found in PCT value: "${pctText}". Defaulting to 0.`);
+                                pct = 0;
+                            }
                             
                             // Validate PCT is in reasonable range
-                            if (pct < 0 || pct > 100) {
-                                console.warn(`SSTSSD: Invalid PCT value detected: ${pct} (from "${pctText}"). Clamping to 0-100 range.`);
-                            }
                             const validatedPct = Math.max(0, Math.min(100, pct));
+                            if (pct !== validatedPct) {
+                                console.warn(`SSTSSD: PCT value ${pct} (from "${pctText}") is out of range. Clamped to ${validatedPct}.`);
+                            }
                             
                             if (bakingModule) {
                                 console.log(`SSTSSD: Auto-detected baking status: ${menu} ${validatedPct}%`);
