@@ -2,33 +2,34 @@
 export class InventoryModule {
     // 자주 쓰는 재료 프리셋
     static COMMON_INGREDIENTS = [
-        { name: "박력분", unit: "g", category: "가루류", defaultQty: 1000 },
-        { name: "강력분", unit: "g", category: "가루류", defaultQty: 1000 },
-        { name: "아몬드가루", unit: "g", category: "가루류", defaultQty: 500 },
-        { name: "슈가파우더", unit: "g", category: "가루류", defaultQty: 500 },
-        { name: "코코아파우더", unit: "g", category: "가루류", defaultQty: 200 },
-        { name: "무염버터", unit: "g", category: "유지류", defaultQty: 450 },
-        { name: "생크림", unit: "ml", category: "유지류", defaultQty: 500 },
-        { name: "크림치즈", unit: "g", category: "유지류", defaultQty: 200 },
-        { name: "우유", unit: "ml", category: "유지류", defaultQty: 1000 },
-        { name: "달걀", unit: "개", category: "달걀/기타", defaultQty: 10 },
-        { name: "바닐라 익스트랙", unit: "ml", category: "달걀/기타", defaultQty: 30 },
-        { name: "설탕", unit: "g", category: "달걀/기타", defaultQty: 1000 },
-        { name: "소금", unit: "g", category: "달걀/기타", defaultQty: 500 },
-        { name: "다크 커버춰 초콜릿", unit: "g", category: "초콜릿류", defaultQty: 500 },
-        { name: "화이트 초콜릿", unit: "g", category: "초콜릿류", defaultQty: 300 },
-        { name: "딸기", unit: "g", category: "과일류", defaultQty: 500 },
-        { name: "블루베리", unit: "g", category: "과일류", defaultQty: 200 },
-        { name: "레몬즙", unit: "ml", category: "과일류", defaultQty: 100 },
-        { name: "젤라틴", unit: "g", category: "기타", defaultQty: 50 },
-        { name: "베이킹파우더", unit: "g", category: "기타", defaultQty: 100 },
+        { name: "박력분", unit: "g", category: "가루류", defaultQty: 1000, defaultPrice: 3000 },
+        { name: "강력분", unit: "g", category: "가루류", defaultQty: 1000, defaultPrice: 3500 },
+        { name: "아몬드가루", unit: "g", category: "가루류", defaultQty: 500, defaultPrice: 8000 },
+        { name: "슈가파우더", unit: "g", category: "가루류", defaultQty: 500, defaultPrice: 4000 },
+        { name: "코코아파우더", unit: "g", category: "가루류", defaultQty: 200, defaultPrice: 5000 },
+        { name: "무염버터", unit: "g", category: "유지류", defaultQty: 450, defaultPrice: 8000 },
+        { name: "생크림", unit: "ml", category: "유지류", defaultQty: 500, defaultPrice: 5000 },
+        { name: "크림치즈", unit: "g", category: "유지류", defaultQty: 200, defaultPrice: 4000 },
+        { name: "우유", unit: "ml", category: "유지류", defaultQty: 1000, defaultPrice: 2500 },
+        { name: "달걀", unit: "개", category: "달걀/기타", defaultQty: 10, defaultPrice: 3500 },
+        { name: "바닐라 익스트랙", unit: "ml", category: "달걀/기타", defaultQty: 30, defaultPrice: 10000 },
+        { name: "설탕", unit: "g", category: "달걀/기타", defaultQty: 1000, defaultPrice: 2000 },
+        { name: "소금", unit: "g", category: "달걀/기타", defaultQty: 500, defaultPrice: 1000 },
+        { name: "다크 커버춰 초콜릿", unit: "g", category: "초콜릿류", defaultQty: 500, defaultPrice: 12000 },
+        { name: "화이트 초콜릿", unit: "g", category: "초콜릿류", defaultQty: 300, defaultPrice: 8000 },
+        { name: "딸기", unit: "g", category: "과일류", defaultQty: 500, defaultPrice: 6000 },
+        { name: "블루베리", unit: "g", category: "과일류", defaultQty: 200, defaultPrice: 5000 },
+        { name: "레몬즙", unit: "ml", category: "과일류", defaultQty: 100, defaultPrice: 3000 },
+        { name: "젤라틴", unit: "g", category: "기타", defaultQty: 50, defaultPrice: 5000 },
+        { name: "베이킹파우더", unit: "g", category: "기타", defaultQty: 100, defaultPrice: 3000 },
     ];
     
-    constructor(settings, saveCallback, getGlobalSettings, getRpDate) {
+    constructor(settings, saveCallback, getGlobalSettings, getRpDate, balanceModule = null) {
         this.settings = settings;
         this.saveCallback = saveCallback;
         this.getGlobalSettings = getGlobalSettings;
         this.getRpDate = getRpDate;
+        this.balanceModule = balanceModule;
         this.moduleName = 'inventory';
         this.idCounter = Date.now();
         
@@ -189,27 +190,6 @@ export class InventoryModule {
         
         item.qty += change;
         
-        // Auto-cleanup for depleted ingredients from baking
-        // Only delete if final quantity is <=0 AND the operation source is "baking"
-        // This prevents keeping brand-specific ingredients (e.g., "끼리크림치즈") after use
-        if (item.qty <= 0 && source === "baking") {
-            // Record deletion in history
-            this.addHistory({
-                itemName: item.name,
-                change: change,
-                afterQty: 0,
-                reason: reason + " (사용 완료 - 자동 삭제)",
-                source: source
-            });
-            // Remove from items array
-            const idx = this.settings.inventory.items.indexOf(item);
-            if (idx !== -1) {
-                this.settings.inventory.items.splice(idx, 1);
-            }
-            this.saveCallback();
-            return true;
-        }
-        
         this.addHistory({
             itemName: item.name,
             change: change,
@@ -316,8 +296,13 @@ export class InventoryModule {
         
         ingredients.forEach(item => {
             if (item.qty <= 0) {
-                out.push(item);
-            } else if (item.qty <= item.minStock) {
+                // minStock이 0이거나 설정 안 된 재료는 부족 알림에서 제외
+                // (딱 필요한 만큼 사서 다 쓴 재료 = 알림 불필요)
+                if (item.minStock && item.minStock > 0) {
+                    out.push(item);
+                }
+                // minStock이 0이면 알림에 안 뜸
+            } else if (item.minStock && item.qty <= item.minStock) {
                 low.push(item);
             }
         });
@@ -641,6 +626,7 @@ export class InventoryModule {
                                     data-unit="${ing.unit}"
                                     data-category="${ing.category}"
                                     data-qty="${ing.defaultQty}"
+                                    data-price="${ing.defaultPrice || 0}"
                                     style="background: #1e1e3a; border: 1px solid #10b981; padding: 6px 12px;"
                                 >
                                     ${this.escapeHtml(ing.name)} (${ing.defaultQty}${ing.unit})
@@ -667,6 +653,7 @@ export class InventoryModule {
                 const unit = btn.dataset.unit;
                 const category = btn.dataset.category;
                 const defaultQty = parseFloat(btn.dataset.qty);
+                const defaultPrice = parseFloat(btn.dataset.price) || 0;
                 
                 // 수량 입력 프롬프트
                 const qty = prompt(`${name}의 수량을 입력하세요 (기본값: ${defaultQty}${unit})`, defaultQty);
@@ -674,6 +661,10 @@ export class InventoryModule {
                 if (qty !== null && qty !== '') {
                     const parsedQty = parseFloat(qty);
                     if (!isNaN(parsedQty) && parsedQty > 0) {
+                        // 가격 입력 프롬프트 (수량 입력 후)
+                        const priceInput = prompt(`${name}의 가격을 입력하세요 (기본값: ${defaultPrice}원)\n가격을 입력하면 잔고에서 차감됩니다.`, defaultPrice);
+                        const price = priceInput !== null ? parseFloat(priceInput) || 0 : 0;
+                        
                         this.addItem({
                             name: name,
                             qty: parsedQty,
@@ -684,6 +675,20 @@ export class InventoryModule {
                             reason: '빠른 추가',
                             source: 'manual'
                         });
+                        
+                        // 가격이 입력되면 잔고에서 차감
+                        if (price > 0 && this.balanceModule) {
+                            const chatData = this.balanceModule.settings;
+                            const shopEnabled = chatData?.balance?.shopMode?.enabled;
+                            this.balanceModule.addTransaction({
+                                type: "expense",
+                                source: shopEnabled ? "shop" : "personal",
+                                category: "재료비",
+                                description: `재료 구매: ${name} ${parsedQty}${unit}`,
+                                amount: price,
+                                memo: "빠른 추가"
+                            });
+                        }
                         
                         const moduleContainer = document.querySelector('.sstssd-module[data-module="inventory"]');
                         if (moduleContainer) {
@@ -741,6 +746,10 @@ export class InventoryModule {
                         <label>최소 재고량</label>
                         <input type="number" name="minStock" class="sstssd-input" value="0" required>
                     </div>
+                    <div class="sstssd-form-group">
+                        <label>예상 가격 (선택사항)</label>
+                        <input type="number" name="price" class="sstssd-input" value="0" placeholder="가격을 입력하면 잔고에서 차감됩니다">
+                    </div>
                     <div class="sstssd-form-actions">
                         <button type="button" class="sstssd-btn sstssd-btn-cancel">취소</button>
                         <button type="submit" class="sstssd-btn sstssd-btn-primary">추가</button>
@@ -758,16 +767,35 @@ export class InventoryModule {
             e.preventDefault();
             const formData = new FormData(form);
             
+            const name = formData.get('name');
+            const qty = parseFloat(formData.get('qty'));
+            const unit = formData.get('unit');
+            const price = parseFloat(formData.get('price')) || 0;
+            
             this.addItem({
-                name: formData.get('name'),
-                qty: parseFloat(formData.get('qty')),
-                unit: formData.get('unit'),
+                name: name,
+                qty: qty,
+                unit: unit,
                 category: formData.get('category'),
                 minStock: parseFloat(formData.get('minStock')),
                 type: 'ingredient',
                 reason: '직접 추가',
                 source: 'manual'
             });
+            
+            // 가격이 입력되면 잔고에서 차감
+            if (price > 0 && this.balanceModule) {
+                const chatData = this.balanceModule.settings;
+                const shopEnabled = chatData?.balance?.shopMode?.enabled;
+                this.balanceModule.addTransaction({
+                    type: "expense",
+                    source: shopEnabled ? "shop" : "personal",
+                    category: "재료비",
+                    description: `재료 구매: ${name} ${qty}${unit}`,
+                    amount: price,
+                    memo: "재고 직접 추가"
+                });
+            }
             
             const moduleContainer = document.querySelector('.sstssd-module[data-module="inventory"]');
             if (moduleContainer) {
