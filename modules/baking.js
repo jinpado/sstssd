@@ -10,10 +10,59 @@ export class BakingModule {
     
     // Default ingredient prices (KRW) for fallback plan
     static DEFAULT_INGREDIENT_PRICES = {
-        FLOUR_PRICE_PER_GRAM: 10,    // 10원/g (약 1kg = 10,000원)
-        SUGAR_PRICE_PER_GRAM: 10,    // 10원/g (약 1kg = 10,000원)
-        BUTTER_PRICE_PER_GRAM: 20,   // 20원/g (약 200g = 4,000원)
-        EGG_PRICE_EACH: 300          // 300원/개
+        // 기본 재료 (Basic ingredients)
+        '밀가루': 10,         // 10원/g (약 1kg = 10,000원)
+        'FLOUR_PRICE_PER_GRAM': 10,    // 10원/g (약 1kg = 10,000원)
+        '설탕': 10,           // 10원/g (약 1kg = 10,000원)
+        'SUGAR_PRICE_PER_GRAM': 10,    // 10원/g (약 1kg = 10,000원)
+        '버터': 20,           // 20원/g (약 200g = 4,000원)
+        'BUTTER_PRICE_PER_GRAM': 20,   // 20원/g (약 200g = 4,000원)
+        '달걀': 300,          // 300원/개
+        'EGG_PRICE_EACH': 300,         // 300원/개
+        
+        // 유제품 (Dairy)
+        '우유': 2,            // 2원/ml (1L = 2,000원)
+        '생크림': 6,          // 6원/ml (200ml = 1,200원)
+        '크림치즈': 25,       // 25원/g (200g = 5,000원)
+        '마스카르포네': 30,   // 30원/g (250g = 7,500원)
+        '요거트': 3,          // 3원/g (500g = 1,500원)
+        
+        // 제빵용 재료 (Baking ingredients)
+        '아몬드가루': 40,     // 40원/g (200g = 8,000원)
+        '코코아파우더': 30,   // 30원/g (200g = 6,000원)
+        '베이킹파우더': 15,   // 15원/g (100g = 1,500원)
+        '베이킹소다': 10,     // 10원/g (100g = 1,000원)
+        '바닐라익스트랙': 100, // 100원/ml (30ml = 3,000원)
+        '바닐라에센스': 50,   // 50원/ml (30ml = 1,500원)
+        '소금': 2,            // 2원/g (500g = 1,000원)
+        '이스트': 20,         // 20원/g (50g = 1,000원)
+        '젤라틴': 60,         // 60원/g (20g = 1,200원)
+        
+        // 초콜릿 (Chocolate)
+        '다크초콜릿': 35,     // 35원/g (200g = 7,000원)
+        '밀크초콜릿': 30,     // 30원/g (200g = 6,000원)
+        '화이트초콜릿': 35,   // 35원/g (200g = 7,000원)
+        '초콜릿칩': 30,       // 30원/g (200g = 6,000원)
+        
+        // 과일 및 견과류 (Fruits & Nuts)
+        '딸기': 30,           // 30원/g (500g = 15,000원)
+        '블루베리': 50,       // 50원/g (200g = 10,000원)
+        '레몬': 3000,         // 3,000원/개
+        '라즈베리': 60,       // 60원/g (125g = 7,500원)
+        '아몬드': 35,         // 35원/g (200g = 7,000원)
+        '호두': 40,           // 40원/g (200g = 8,000원)
+        
+        // 기타 (Others)
+        '꿀': 20,             // 20원/g (500g = 10,000원)
+        '메이플시럽': 30,     // 30원/ml (200ml = 6,000원)
+        '연유': 10,           // 10원/g (400g = 4,000원)
+        '카라멜': 25,         // 25원/g (200g = 5,000원)
+        '식용색소': 50,       // 50원/ml (10ml = 500원)
+        
+        // Default fallback for unknown ingredients
+        'DEFAULT_PER_GRAM': 15,        // 15원/g for weight-based unknown ingredients
+        'DEFAULT_PER_ML': 10,          // 10원/ml for volume-based unknown ingredients
+        'DEFAULT_PER_PIECE': 500       // 500원/개 for count-based unknown ingredients
     };
     
     constructor(settings, saveCallback, getGlobalSettings, getRpDate, inventoryModule, instagramModule = null) {
@@ -169,6 +218,208 @@ export class BakingModule {
         
         this.saveCallback();
         return { success: true };
+    }
+    
+    // Start step-by-step baking (separate from performBaking)
+    startBaking(recipeId, multiplier = 1) {
+        const recipe = this.settings.baking.recipes.find(r => r.id === recipeId);
+        if (!recipe) {
+            return { success: false, error: "레시피를 찾을 수 없습니다" };
+        }
+        
+        // Check if already in progress
+        if (recipe.status === 'in_progress') {
+            return { success: false, error: "이미 진행 중인 레시피입니다" };
+        }
+        
+        // 재료 확인 (don't deduct yet)
+        if (this.inventoryModule) {
+            for (const ingredient of recipe.ingredients) {
+                const requiredQty = ingredient.qty * multiplier;
+                const item = this.inventoryModule.settings.inventory.items.find(i => 
+                    i.name === ingredient.name && i.type === "ingredient"
+                );
+                
+                if (!item || item.qty < requiredQty) {
+                    return { 
+                        success: false, 
+                        error: `재료 부족: ${ingredient.name} (필요: ${requiredQty}${ingredient.unit}, 보유: ${item ? item.qty : 0}${ingredient.unit})` 
+                    };
+                }
+            }
+        }
+        
+        // Initialize step tracking
+        recipe.status = 'in_progress';
+        recipe.currentStep = 0;
+        recipe.multiplier = multiplier;
+        
+        // Initialize steps with status
+        if (recipe.steps) {
+            recipe.steps.forEach(step => {
+                step.status = 'pending';
+            });
+        }
+        
+        this.saveCallback();
+        return { success: true, recipe };
+    }
+    
+    // Start a specific step
+    startStep(recipeId, stepIndex) {
+        const recipe = this.settings.baking.recipes.find(r => r.id === recipeId);
+        if (!recipe || !recipe.steps || !recipe.steps[stepIndex]) {
+            return { success: false, error: "단계를 찾을 수 없습니다" };
+        }
+        
+        const step = recipe.steps[stepIndex];
+        step.status = 'in_progress';
+        recipe.currentStep = stepIndex;
+        
+        this.saveCallback();
+        
+        // Notify RP context if available
+        this.notifyBakingEvent('step_start', recipe, step);
+        
+        return { success: true, step };
+    }
+    
+    // Pause a specific step
+    pauseStep(recipeId, stepIndex) {
+        const recipe = this.settings.baking.recipes.find(r => r.id === recipeId);
+        if (!recipe || !recipe.steps || !recipe.steps[stepIndex]) {
+            return { success: false, error: "단계를 찾을 수 없습니다" };
+        }
+        
+        const step = recipe.steps[stepIndex];
+        step.status = 'paused';
+        
+        this.saveCallback();
+        
+        // Notify RP context if available
+        this.notifyBakingEvent('step_pause', recipe, step);
+        
+        return { success: true, step };
+    }
+    
+    // Complete a specific step
+    completeStep(recipeId, stepIndex) {
+        const recipe = this.settings.baking.recipes.find(r => r.id === recipeId);
+        if (!recipe || !recipe.steps || !recipe.steps[stepIndex]) {
+            return { success: false, error: "단계를 찾을 수 없습니다" };
+        }
+        
+        const step = recipe.steps[stepIndex];
+        step.status = 'completed';
+        
+        // Check if this is the last step
+        const isLastStep = stepIndex === recipe.steps.length - 1;
+        
+        if (isLastStep) {
+            // Complete baking: deduct ingredients and add product
+            const multiplier = recipe.multiplier || 1;
+            
+            if (this.inventoryModule) {
+                // 재료 차감
+                for (const ingredient of recipe.ingredients) {
+                    const requiredQty = ingredient.qty * multiplier;
+                    this.inventoryModule.changeItemQty(
+                        ingredient.name,
+                        -requiredQty,
+                        `${recipe.name} ×${recipe.yieldQty * multiplier} 제작`,
+                        "baking"
+                    );
+                }
+                
+                // 완제품 추가
+                this.inventoryModule.addProduct({
+                    name: recipe.name,
+                    qty: recipe.yieldQty * multiplier,
+                    unit: recipe.yieldUnit,
+                    reason: `${recipe.name} ×${recipe.yieldQty * multiplier} 제작`
+                });
+            }
+            
+            // 베이킹 이력 추가
+            const historyEntry = {
+                id: ++this.idCounter,
+                recipeName: recipe.name,
+                multiplier: multiplier,
+                yieldQty: recipe.yieldQty * multiplier,
+                yieldUnit: recipe.yieldUnit,
+                date: this.formatDate(this.getRpDate())
+            };
+            this.settings.baking.bakingHistory.unshift(historyEntry);
+            
+            // 이력은 최근 30건만 유지
+            if (this.settings.baking.bakingHistory.length > 30) {
+                this.settings.baking.bakingHistory = this.settings.baking.bakingHistory.slice(0, 30);
+            }
+            
+            recipe.status = 'completed';
+            recipe.currentStep = null;
+            
+            this.saveCallback();
+            
+            // Notify completion
+            this.notifyBakingEvent('baking_complete', recipe, step);
+            
+            return { success: true, completed: true, recipe };
+        } else {
+            // Move to next step
+            recipe.currentStep = stepIndex + 1;
+            
+            this.saveCallback();
+            
+            // Notify step completion
+            this.notifyBakingEvent('step_complete', recipe, step);
+            
+            return { success: true, completed: false, nextStep: recipe.steps[stepIndex + 1] };
+        }
+    }
+    
+    // Cancel step-by-step baking
+    cancelStepBaking(recipeId) {
+        const recipe = this.settings.baking.recipes.find(r => r.id === recipeId);
+        if (!recipe) {
+            return { success: false, error: "레시피를 찾을 수 없습니다" };
+        }
+        
+        recipe.status = 'pending';
+        recipe.currentStep = null;
+        if (recipe.steps) {
+            recipe.steps.forEach(step => {
+                step.status = 'pending';
+            });
+        }
+        
+        this.saveCallback();
+        return { success: true };
+    }
+    
+    // Notify baking events for RP integration
+    notifyBakingEvent(eventType, recipe, step) {
+        // This will be used by the main index.js to inject into RP prompts
+        // Store the current event for buildDashboardPrompt to pick up
+        if (!this.settings.baking.currentEvent) {
+            this.settings.baking.currentEvent = null;
+        }
+        
+        this.settings.baking.currentEvent = {
+            type: eventType,
+            recipeName: recipe.name,
+            stepName: step ? step.name : null,
+            timestamp: Date.now()
+        };
+        
+        // Clear event after 5 seconds (to avoid stale events)
+        const eventTimestamp = this.settings.baking.currentEvent.timestamp;
+        setTimeout(() => {
+            if (this.settings.baking.currentEvent && 
+                this.settings.baking.currentEvent.timestamp === eventTimestamp) {
+                this.settings.baking.currentEvent = null;
+            }
+        }, 5000);
     }
     
     // ===== 구매 리스트 관리 =====
@@ -453,22 +704,104 @@ export class BakingModule {
     
     // 레시피 항목 렌더링
     renderRecipeItem(recipe) {
+        const isInProgress = recipe.status === 'in_progress';
+        const multiplier = recipe.multiplier || 1;
+        
+        if (isInProgress && recipe.steps && recipe.steps.length > 0) {
+            // Render step-by-step UI
+            const currentStep = recipe.currentStep || 0;
+            const completedSteps = recipe.steps.filter(s => s.status === 'completed').length;
+            const progressPercent = (completedSteps / recipe.steps.length) * 100;
+            
+            return `
+                <div class="sstssd-baking-item sstssd-baking-in-progress" data-id="${recipe.id}">
+                    <div class="sstssd-baking-header">
+                        <span class="sstssd-baking-name">${this.escapeHtml(recipe.name)}</span>
+                        <span class="sstssd-baking-yield">(×${recipe.yieldQty * multiplier}${recipe.yieldUnit})</span>
+                        <span class="sstssd-baking-status">🔄 진행 중</span>
+                    </div>
+                    
+                    <div class="sstssd-baking-progress-bar">
+                        <div class="sstssd-baking-progress-fill" style="width: ${progressPercent}%"></div>
+                        <span class="sstssd-baking-progress-text">${completedSteps}/${recipe.steps.length} 단계 완료</span>
+                    </div>
+                    
+                    <div class="sstssd-baking-steps">
+                        ${recipe.steps.map((step, idx) => this.renderStepItem(recipe, step, idx)).join('')}
+                    </div>
+                    
+                    <div class="sstssd-baking-actions">
+                        <button class="sstssd-btn sstssd-btn-sm sstssd-btn-danger" data-action="cancel-step-baking" data-id="${recipe.id}">❌ 취소</button>
+                    </div>
+                </div>
+            `;
+        } else {
+            // Render normal UI
+            return `
+                <div class="sstssd-baking-item" data-id="${recipe.id}">
+                    <div class="sstssd-baking-header">
+                        <span class="sstssd-baking-name">${this.escapeHtml(recipe.name)}</span>
+                        <span class="sstssd-baking-yield">(${recipe.yieldQty}${recipe.yieldUnit})</span>
+                        ${recipe.deadline ? `<span class="sstssd-baking-deadline">📅 ${recipe.deadline}</span>` : ''}
+                    </div>
+                    <div class="sstssd-baking-ingredients">
+                        ${recipe.ingredients.map(ing => `
+                            <span class="sstssd-ingredient-tag">${ing.name} ${ing.qty}${ing.unit}</span>
+                        `).join('')}
+                    </div>
+                    <div class="sstssd-baking-actions">
+                        <button class="sstssd-btn sstssd-btn-sm sstssd-btn-primary" data-action="bake" data-id="${recipe.id}">🧁 베이킹</button>
+                        <button class="sstssd-btn sstssd-btn-sm sstssd-btn-success" data-action="start-step-baking" data-id="${recipe.id}">▶ 단계별 시작</button>
+                        <button class="sstssd-btn sstssd-btn-sm" data-action="edit-recipe" data-id="${recipe.id}">✏️</button>
+                        <button class="sstssd-btn sstssd-btn-sm" data-action="delete-recipe" data-id="${recipe.id}">🗑</button>
+                    </div>
+                </div>
+            `;
+        }
+    }
+    
+    // 단계 항목 렌더링
+    renderStepItem(recipe, step, stepIndex) {
+        const isCurrent = recipe.currentStep === stepIndex;
+        const statusIcon = {
+            'pending': '⬜',
+            'in_progress': '🔄',
+            'paused': '⏸️',
+            'completed': '✅'
+        }[step.status || 'pending'];
+        
+        const canStart = step.status === 'pending' || step.status === 'paused';
+        const canPause = step.status === 'in_progress';
+        const canComplete = step.status === 'in_progress';
+        
         return `
-            <div class="sstssd-baking-item" data-id="${recipe.id}">
-                <div class="sstssd-baking-header">
-                    <span class="sstssd-baking-name">${this.escapeHtml(recipe.name)}</span>
-                    <span class="sstssd-baking-yield">(${recipe.yieldQty}${recipe.yieldUnit})</span>
-                    ${recipe.deadline ? `<span class="sstssd-baking-deadline">📅 ${recipe.deadline}</span>` : ''}
+            <div class="sstssd-baking-step ${isCurrent ? 'sstssd-baking-step-current' : ''} sstssd-baking-step-${step.status || 'pending'}" data-step-index="${stepIndex}">
+                <div class="sstssd-baking-step-header">
+                    <span class="sstssd-baking-step-icon">${statusIcon}</span>
+                    <span class="sstssd-baking-step-name">${this.escapeHtml(step.name)}</span>
+                    <span class="sstssd-baking-step-time">${step.estimatedTime}</span>
                 </div>
-                <div class="sstssd-baking-ingredients">
-                    ${recipe.ingredients.map(ing => `
-                        <span class="sstssd-ingredient-tag">${ing.name} ${ing.qty}${ing.unit}</span>
-                    `).join('')}
-                </div>
-                <div class="sstssd-baking-actions">
-                    <button class="sstssd-btn sstssd-btn-sm sstssd-btn-primary" data-action="bake" data-id="${recipe.id}">🧁 베이킹</button>
-                    <button class="sstssd-btn sstssd-btn-sm" data-action="edit-recipe" data-id="${recipe.id}">✏️</button>
-                    <button class="sstssd-btn sstssd-btn-sm" data-action="delete-recipe" data-id="${recipe.id}">🗑</button>
+                <div class="sstssd-baking-step-actions">
+                    ${canStart ? `
+                        <button class="sstssd-btn sstssd-btn-xs sstssd-btn-success" 
+                                data-action="start-step" 
+                                data-recipe-id="${recipe.id}" 
+                                data-step-index="${stepIndex}">
+                            ${step.status === 'paused' ? '▶ 재개' : '▶ 시작'}
+                        </button>
+                    ` : ''}
+                    ${canPause ? `
+                        <button class="sstssd-btn sstssd-btn-xs" 
+                                data-action="pause-step" 
+                                data-recipe-id="${recipe.id}" 
+                                data-step-index="${stepIndex}">⏸ 일시정지</button>
+                    ` : ''}
+                    ${canComplete ? `
+                        <button class="sstssd-btn sstssd-btn-xs sstssd-btn-primary" 
+                                data-action="complete-step" 
+                                data-recipe-id="${recipe.id}" 
+                                data-step-index="${stepIndex}">✅ 완료</button>
+                    ` : ''}
                 </div>
             </div>
         `;
@@ -538,14 +871,16 @@ export class BakingModule {
     // 구매 리스트 항목 렌더링
     renderShoppingListItem(item, locationId, currentLocation) {
         const newLocation = currentLocation === "온라인" ? "시장/마트" : "온라인";
+        const isUnpriced = !item.price || item.price === 0;
         
         return `
-            <div class="sstssd-shopping-item" data-item-id="${item.id}">
+            <div class="sstssd-shopping-item ${isUnpriced ? 'sstssd-shopping-item-unpriced' : ''}" data-item-id="${item.id}">
                 <div class="sstssd-shopping-item-main">
                     <span class="sstssd-shopping-checkbox">⬜</span>
                     <div class="sstssd-shopping-item-info">
                         <div class="sstssd-shopping-item-name">
                             ${this.escapeHtml(item.name)} ${item.qty}${item.unit}
+                            ${isUnpriced ? '<span class="sstssd-price-unconfirmed">💡 가격 미확인</span>' : ''}
                         </div>
                         ${item.sources.length > 0 ? `
                             <div class="sstssd-shopping-item-sources">
@@ -553,17 +888,17 @@ export class BakingModule {
                             </div>
                         ` : ''}
                     </div>
-                    <span class="sstssd-shopping-price">${this.formatCurrency(item.price)}</span>
+                    <span class="sstssd-shopping-price">${isUnpriced ? '직접 입력 필요' : this.formatCurrency(item.price)}</span>
                 </div>
                 <div class="sstssd-shopping-item-actions">
                     <button class="sstssd-btn sstssd-btn-xs" 
                             data-action="edit-shopping-qty" 
                             data-location-id="${locationId}" 
                             data-item-id="${item.id}">수량 수정</button>
-                    <button class="sstssd-btn sstssd-btn-xs" 
+                    <button class="sstssd-btn sstssd-btn-xs ${isUnpriced ? 'sstssd-btn-warning' : ''}" 
                             data-action="edit-shopping-price" 
                             data-location-id="${locationId}" 
-                            data-item-id="${item.id}">가격 수정</button>
+                            data-item-id="${item.id}">${isUnpriced ? '가격 입력' : '가격 수정'}</button>
                     <button class="sstssd-btn sstssd-btn-xs" 
                             data-action="delete-shopping-item" 
                             data-location-id="${locationId}" 
@@ -614,6 +949,84 @@ export class BakingModule {
                 const id = parseInt(btn.dataset.id);
                 if (confirm('정말 삭제하시겠습니까?')) {
                     this.deleteRecipe(id);
+                    this.render(container);
+                }
+            });
+        });
+        
+        // 단계별 베이킹 시작 버튼
+        const startStepBakingBtns = container.querySelectorAll('[data-action="start-step-baking"]');
+        startStepBakingBtns.forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const id = parseInt(btn.dataset.id);
+                this.showStepBakingConfirmModal(id);
+            });
+        });
+        
+        // 단계별 베이킹 취소 버튼
+        const cancelStepBakingBtns = container.querySelectorAll('[data-action="cancel-step-baking"]');
+        cancelStepBakingBtns.forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const id = parseInt(btn.dataset.id);
+                if (confirm('단계별 베이킹을 취소하시겠습니까?')) {
+                    this.cancelStepBaking(id);
+                    this.render(container);
+                }
+            });
+        });
+        
+        // 단계 시작 버튼
+        const startStepBtns = container.querySelectorAll('[data-action="start-step"]');
+        startStepBtns.forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const recipeId = parseInt(btn.dataset.recipeId);
+                const stepIndex = parseInt(btn.dataset.stepIndex);
+                this.startStep(recipeId, stepIndex);
+                this.render(container);
+            });
+        });
+        
+        // 단계 일시정지 버튼
+        const pauseStepBtns = container.querySelectorAll('[data-action="pause-step"]');
+        pauseStepBtns.forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const recipeId = parseInt(btn.dataset.recipeId);
+                const stepIndex = parseInt(btn.dataset.stepIndex);
+                this.pauseStep(recipeId, stepIndex);
+                this.render(container);
+            });
+        });
+        
+        // 단계 완료 버튼
+        const completeStepBtns = container.querySelectorAll('[data-action="complete-step"]');
+        completeStepBtns.forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const recipeId = parseInt(btn.dataset.recipeId);
+                const stepIndex = parseInt(btn.dataset.stepIndex);
+                const result = this.completeStep(recipeId, stepIndex);
+                
+                if (result.success && result.completed) {
+                    // Show Instagram posting option if available
+                    const recipe = this.settings.baking.recipes.find(r => r.id === recipeId);
+                    if (recipe && this.instagramModule) {
+                        const multiplier = recipe.multiplier || 1;
+                        this.showInstagramPostOption(recipe.name, recipe.yieldQty * multiplier, recipe.yieldUnit);
+                    } else {
+                        alert('베이킹 완료!');
+                    }
+                    
+                    // Re-render all related modules
+                    this.render(container);
+                    const inventoryContainer = document.querySelector('.sstssd-module[data-module="inventory"]');
+                    if (inventoryContainer && this.inventoryModule) {
+                        this.inventoryModule.render(inventoryContainer);
+                    }
+                } else {
                     this.render(container);
                 }
             });
@@ -932,15 +1345,22 @@ ingredients:
                 for (const ingMatch of ingMatches) {
                     // Round to 2 decimal places to avoid precision issues
                     const qty = Math.round(parseFloat(ingMatch[2]) * 100) / 100;
+                    const name = ingMatch[1];
+                    const unit = ingMatch[3];
+                    
                     const ingredient = {
-                        name: ingMatch[1],
+                        name: name,
                         qty: qty,
-                        unit: ingMatch[3]
+                        unit: unit
                     };
-                    // Add estimatedPrice if present
+                    
+                    // Add estimatedPrice if present, otherwise calculate from defaults
                     if (ingMatch[4]) {
                         ingredient.estimatedPrice = parseInt(ingMatch[4]);
+                    } else {
+                        ingredient.estimatedPrice = this.estimateIngredientPrice(name, qty, unit);
                     }
+                    
                     ingredients.push(ingredient);
                 }
             }
@@ -950,6 +1370,37 @@ ingredients:
             console.error('Failed to parse AI response:', error);
             return null;
         }
+    }
+    
+    // Estimate ingredient price from defaults
+    estimateIngredientPrice(name, qty, unit) {
+        const prices = BakingModule.DEFAULT_INGREDIENT_PRICES;
+        
+        // Try exact name match first
+        if (prices[name] !== undefined) {
+            return Math.round(qty * prices[name]);
+        }
+        
+        // Try partial match (case insensitive)
+        const nameLower = name.toLowerCase();
+        for (const [key, value] of Object.entries(prices)) {
+            if (key.toLowerCase().includes(nameLower) || nameLower.includes(key.toLowerCase())) {
+                return Math.round(qty * value);
+            }
+        }
+        
+        // Fallback based on unit
+        const unitLower = unit.toLowerCase();
+        if (unitLower === 'g' || unitLower === '그램') {
+            return Math.round(qty * prices.DEFAULT_PER_GRAM);
+        } else if (unitLower === 'ml' || unitLower === '밀리리터') {
+            return Math.round(qty * prices.DEFAULT_PER_ML);
+        } else if (unitLower === '개' || unitLower === 'ea' || unitLower === 'piece') {
+            return Math.round(qty * prices.DEFAULT_PER_PIECE);
+        }
+        
+        // Last resort: assume weight-based
+        return Math.round(qty * prices.DEFAULT_PER_GRAM);
     }
     
     // 기본 계획 생성 (AI 실패 시)
@@ -1431,6 +1882,103 @@ ingredients:
                 }
             } else {
                 alert('베이킹 실패: ' + result.error);
+            }
+        });
+        
+        cancelBtn.addEventListener('click', () => modal.remove());
+        overlay.addEventListener('click', () => modal.remove());
+    }
+    
+    // Show step-by-step baking confirmation modal
+    showStepBakingConfirmModal(recipeId) {
+        const recipe = this.settings.baking.recipes.find(r => r.id === recipeId);
+        if (!recipe) return;
+        
+        const modal = document.createElement('div');
+        modal.className = 'sstssd-modal';
+        modal.innerHTML = `
+            <div class="sstssd-modal-overlay"></div>
+            <div class="sstssd-modal-content">
+                <h3>▶ 단계별 베이킹 시작</h3>
+                <form id="sstssd-step-bake-form">
+                    <div class="sstssd-form-group">
+                        <label>레시피: ${this.escapeHtml(recipe.name)}</label>
+                    </div>
+                    <div class="sstssd-form-group">
+                        <label>배수 (1배 = ${recipe.yieldQty}${recipe.yieldUnit})</label>
+                        <input type="number" name="multiplier" class="sstssd-input" value="1" min="1" required>
+                    </div>
+                    <div class="sstssd-form-group">
+                        <label>총 단계</label>
+                        <div>${recipe.steps ? recipe.steps.length : 0}단계</div>
+                    </div>
+                    <div class="sstssd-form-group">
+                        <label>필요 재료</label>
+                        <div id="ingredient-check"></div>
+                    </div>
+                    <p style="color: #9ca3af; font-size: 13px;">
+                        💡 각 단계를 직접 시작/완료하면서 베이킹을 진행합니다. 재료는 마지막 단계 완료 시 차감됩니다.
+                    </p>
+                    <div class="sstssd-form-actions">
+                        <button type="button" class="sstssd-btn sstssd-btn-cancel">취소</button>
+                        <button type="submit" class="sstssd-btn sstssd-btn-primary">단계별 시작</button>
+                    </div>
+                </form>
+            </div>
+        `;
+        document.body.appendChild(modal);
+        
+        const form = modal.querySelector('#sstssd-step-bake-form');
+        const multiplierInput = form.querySelector('[name="multiplier"]');
+        const ingredientCheck = modal.querySelector('#ingredient-check');
+        const cancelBtn = modal.querySelector('.sstssd-btn-cancel');
+        const overlay = modal.querySelector('.sstssd-modal-overlay');
+        
+        // 재료 확인 업데이트 함수
+        const updateIngredientCheck = () => {
+            const multiplier = parseInt(multiplierInput.value) || 1;
+            let html = '<ul style="margin: 0; padding-left: 20px;">';
+            
+            recipe.ingredients.forEach(ing => {
+                const required = ing.qty * multiplier;
+                const item = this.inventoryModule?.settings.inventory.items.find(i => 
+                    i.name === ing.name && i.type === "ingredient"
+                );
+                const available = item ? item.qty : 0;
+                const sufficient = available >= required;
+                const icon = sufficient ? '✅' : '❌';
+                
+                html += `<li>${icon} ${ing.name}: ${required}${ing.unit} (보유: ${available}${ing.unit})</li>`;
+            });
+            
+            html += '</ul>';
+            ingredientCheck.innerHTML = html;
+        };
+        
+        // 초기 재료 확인
+        updateIngredientCheck();
+        
+        // 배수 변경 시 재료 확인 업데이트
+        multiplierInput.addEventListener('input', updateIngredientCheck);
+        
+        form.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const formData = new FormData(form);
+            const multiplier = parseInt(formData.get('multiplier'));
+            
+            const result = this.startBaking(recipeId, multiplier);
+            
+            if (result.success) {
+                modal.remove();
+                alert('단계별 베이킹을 시작합니다!');
+                
+                // Re-render baking module
+                const bakingContainer = document.querySelector('.sstssd-module[data-module="baking"]');
+                if (bakingContainer) {
+                    this.render(bakingContainer);
+                }
+            } else {
+                alert('시작 실패: ' + result.error);
             }
         });
         
