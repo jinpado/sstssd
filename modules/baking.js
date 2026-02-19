@@ -501,11 +501,21 @@ export class BakingModule {
         const menuText = bakeTagData.menu.trim();
         const recipeName = menuText.replace(/\s*×.*$/, '').trim();
         
-        // Find matching recipe by name
-        const recipe = this.settings.baking.recipes.find(r => 
-            r.status === 'in_progress' && 
-            (r.name === recipeName || recipeName.includes(r.name) || r.name.includes(recipeName))
-        );
+        // Find matching recipe by name with better matching logic
+        const recipe = this.settings.baking.recipes.find(r => {
+            if (r.status !== 'in_progress') return false;
+            
+            // Try exact match first
+            if (r.name === recipeName) return true;
+            
+            // Try case-insensitive exact match
+            if (r.name.toLowerCase() === recipeName.toLowerCase()) return true;
+            
+            // Only use fuzzy matching as last resort for very similar names
+            const nameNormalized = r.name.toLowerCase().replace(/\s+/g, '');
+            const recipeNormalized = recipeName.toLowerCase().replace(/\s+/g, '');
+            return nameNormalized === recipeNormalized;
+        });
         
         if (!recipe) {
             console.log('SSTSSD: No matching in-progress recipe for BAKE tag:', recipeName);
@@ -2103,7 +2113,7 @@ ingredients:
                         <div id="ingredient-check"></div>
                     </div>
                     <p style="color: #9ca3af; font-size: 13px;">
-                        💡 베이킹을 시작하면 QR 시스템과 연동됩니다. AI가 <code>&lt;BAKE&gt;</code> 태그로 진행 상황을 업데이트하며, 100% 완료 시 자동으로 재료가 차감되고 완제품이 추가됩니다.
+                        💡 베이킹을 시작하면 QR 시스템과 연동됩니다. AI가 BAKE 태그로 진행 상황을 업데이트하며, 100% 완료 시 자동으로 재료가 차감되고 완제품이 추가됩니다.
                     </p>
                     <div class="sstssd-form-actions">
                         <button type="button" class="sstssd-btn sstssd-btn-cancel">취소</button>

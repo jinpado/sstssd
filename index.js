@@ -20,6 +20,8 @@ const SALE_REGEX = /<SALE>(.+?)\|(\d+)\|(\d+)\s*<\/SALE>/g;
 const GIFT_REGEX = /<GIFT>(.+?)\|(\d+)\|(.+?)\s*<\/GIFT>/g;
 const BAKE_REGEX = /<BAKE>(.+?)\|(\d+)(?:\|(.+?))?\s*<\/BAKE>/g;
 const SHOP_REGEX = /<SHOP>(.+?)\|(\d+)\|(.+?)\|(\d+)(?:\|(.+?))?\s*<\/SHOP>/g;
+// BAKE_STATUS_REGEX: Enhanced baking progress tracking
+// Example: <BAKE>[MENU]딸기 타르트 ×6개[/MENU][START]2024-01-15 14:00[/START][END]2024-01-15 16:00[/END][STEPS]✅ ✅ 🔄 ⬜ ⬜[/STEPS][PCT]60[/PCT]</BAKE>
 const BAKE_STATUS_REGEX = /<BAKE>\s*\[MENU\](.+?)\[\/MENU\]\s*\[START\](.+?)\[\/START\]\s*\[END\](.+?)\[\/END\]\s*\[STEPS\](.+?)\[\/STEPS\]\s*\[PCT\](\d+)\[\/PCT\]\s*<\/BAKE>/g;
 
 // Extension state
