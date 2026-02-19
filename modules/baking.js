@@ -86,13 +86,15 @@ export class BakingModule {
         'DEFAULT_PER_PIECE': 500       // 500원/개 for count-based unknown ingredients
     };
     
-    constructor(settings, saveCallback, getGlobalSettings, getRpDate, inventoryModule, instagramModule = null) {
+    constructor(settings, saveCallback, getGlobalSettings, getRpDate, inventoryModule, instagramModule = null, balanceModule = null, getContextFn = null) {
         this.settings = settings;
         this.saveCallback = saveCallback;
         this.getGlobalSettings = getGlobalSettings;
         this.getRpDate = getRpDate;
         this.inventoryModule = inventoryModule;
         this.instagramModule = instagramModule;
+        this.balanceModule = balanceModule;
+        this.getContextFn = getContextFn;
         this.moduleName = 'baking';
         this.idCounter = Date.now();
         
@@ -889,8 +891,21 @@ export class BakingModule {
             });
         }
         
-        // 2. 잔고에서 차감
-        if (this.settings.balance) {
+        // 2. 잔고에서 차감 및 거래 내역 추가
+        if (this.balanceModule) {
+            const linkedRecipeName = locationList.linkedRecipe ? 
+                (this.settings.baking.recipes.find(r => r.id === locationList.linkedRecipe)?.name || '') : '';
+            
+            this.balanceModule.addTransaction({
+                type: "expense",
+                source: "shop",
+                category: "재료 구매",
+                description: `${location} 구매${linkedRecipeName ? ': ' + linkedRecipeName : ''} (${locationList.items.length}개 항목)`,
+                amount: totalPrice,
+                memo: "구매 리스트 완료"
+            });
+        } else if (this.settings.balance) {
+            // Fallback to direct manipulation if balanceModule is not available
             const shopEnabled = this.settings.balance.shopMode?.enabled;
             
             if (shopEnabled) {
@@ -1668,7 +1683,17 @@ export class BakingModule {
             // Try to use SillyTavern's generation API
             let context = null;
             try {
-                context = typeof window !== 'undefined' && typeof window.getContext === 'function' ? window.getContext() : null;
+                // Try multiple approaches to get the context
+                if (typeof window !== 'undefined') {
+                    context = typeof window.getContext === 'function' ? window.getContext() : null;
+                    if (!context && typeof window.SillyTavern !== 'undefined') {
+                        context = window.SillyTavern.getContext?.();
+                    }
+                }
+                // Also try the injected getContext if available
+                if (!context && this.getContextFn) {
+                    context = this.getContextFn();
+                }
             } catch (e) {
                 // getContext not available
             }
