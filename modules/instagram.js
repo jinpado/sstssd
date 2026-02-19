@@ -982,7 +982,7 @@ export class InstagramModule {
                 dmId: id,
                 customerName: dm.from,
                 description: formData.get('description'),
-                estimatedPrice: parseFloat(formData.get('estimatedPrice')) || 0,
+                estimatedPrice: parseInt(formData.get('estimatedPrice')) || 0,
                 deliveryDate: formData.get('deliveryDate'),
                 status: 'pending',
                 memo: formData.get('memo') || '',
@@ -993,7 +993,8 @@ export class InstagramModule {
             
             // Optionally create todo item
             if (this.todoModule) {
-                const todoTitle = `📱 ${dm.from} 주문 준비 - ${formData.get('description')}`;
+                const description = formData.get('description');
+                const todoTitle = `📱 ${dm.from} 주문 준비 - ${description.substring(0, 50)}${description.length > 50 ? '...' : ''}`;
                 this.todoModule.addItem({
                     title: todoTitle,
                     deadline: formData.get('deliveryDate'),

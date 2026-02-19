@@ -890,8 +890,7 @@ export class BakingModule {
             const linkedRecipeName = locationList.linkedRecipe ? 
                 (this.settings.baking.recipes.find(r => r.id === locationList.linkedRecipe)?.name || '') : '';
             
-            const shopEnabled = this.balanceModule?.settings?.balance?.shopMode?.enabled || 
-                                this.settings?.balance?.shopMode?.enabled || false;
+            const shopEnabled = this.balanceModule.settings?.balance?.shopMode?.enabled || false;
             
             this.balanceModule.addTransaction({
                 type: "expense",
