@@ -13,19 +13,34 @@ import { InstagramModule } from './modules/instagram.js';
 
 const MODULE_NAME = 'sstssd';
 
+// Time constants
+const MS_PER_DAY = 24 * 60 * 60 * 1000;  // Milliseconds in a day
+
 // Tag detection regex patterns
 const FIN_IN_REGEX = /<FIN_IN>(.+?)\|(\d+)\s*<\/FIN_IN>/g;
 const FIN_OUT_REGEX = /<FIN_OUT>(.+?)\|(\d+)\s*<\/FIN_OUT>/g;
 const SALE_REGEX = /<SALE>(.+?)\|(\d+)\|(\d+)\s*<\/SALE>/g;
 const GIFT_REGEX = /<GIFT>(.+?)\|(\d+)\|(.+?)\s*<\/GIFT>/g;
-const BAKE_REGEX = /<BAKE>(.+?)\|(\d+)(?:\|(.+?))?\s*<\/BAKE>/g;
-const SHOP_REGEX = /<SHOP>(.+?)\|(\d+)\|(.+?)\|(\d+)(?:\|(.+?))?\s*<\/SHOP>/g;
 // SHOP_DETAILED_REGEX: Enhanced shopping list with detailed items
+// Supports both WI format (품명|가격§구분) and QR format (🔸 item — qty — price원)
 // Example: <SHOP>[STORE]학교 앞 마트[/STORE][WHEN]작업 전[/WHEN][ITEMS]🔸 아몬드 가루 — 200g — 4,500원[/ITEMS][TOTAL]22,000원[/TOTAL]</SHOP>
 const SHOP_DETAILED_REGEX = /<SHOP>\s*\[STORE\]([\s\S]*?)\[\/STORE\]\s*\[WHEN\]([\s\S]*?)\[\/WHEN\]\s*\[ITEMS\]([\s\S]*?)\[\/ITEMS\]\s*\[TOTAL\]([\s\S]*?)\[\/TOTAL\]\s*<\/SHOP>/g;
 // BAKE_STATUS_REGEX: Enhanced baking progress tracking
+// Supports both WI format (상태|단계명|시간|비고§구분) and QR format (⬜ step (time) newline-separated)
 // Example: <BAKE>[MENU]딸기 타르트 ×6개[/MENU][START]2024-01-15 14:00[/START][END]2024-01-15 16:00[/END][STEPS]✅ ✅ 🔄 ⬜ ⬜[/STEPS][PCT]60[/PCT]</BAKE>
 const BAKE_STATUS_REGEX = /<BAKE>\s*\[MENU\]([\s\S]+?)\[\/MENU\]\s*\[START\]([\s\S]+?)\[\/START\]\s*\[END\]([\s\S]+?)\[\/END\]\s*\[STEPS\]([\s\S]+?)\[\/STEPS\]\s*\[PCT\]\s*(\d+)\s*%?\s*\[\/PCT\]\s*<\/BAKE>/g;
+// BANK_REGEX: Financial status with balance, savings, income/expense totals
+// Example: <BANK>[BAL]현재잔고[/BAL][SAVE]저축액[/SAVE][GOAL]목표금액[/GOAL]...[/BANK>
+const BANK_REGEX = /<BANK>\s*\[BAL\]([\s\S]*?)\[\/BAL\]\s*\[SAVE\]([\s\S]*?)\[\/SAVE\]\s*\[GOAL\]([\s\S]*?)\[\/GOAL\]\s*\[GOALPCT\]([\s\S]*?)\[\/GOALPCT\]\s*\[INTOTAL\]([\s\S]*?)\[\/INTOTAL\]\s*\[INLIST\]([\s\S]*?)\[\/INLIST\]\s*\[OUTTOTAL\]([\s\S]*?)\[\/OUTTOTAL\]\s*\[OUTLIST\]([\s\S]*?)\[\/OUTLIST\]\s*\[NET\]([\s\S]*?)\[\/NET\]\s*<\/BANK>/g;
+// TASKS_REGEX: To-do list with categorized items (semicolon-separated within categories)
+// Example: <TASKS>[URGENT]긴급항목[/URGENT][WEEK]이번주항목[/WEEK][ROUTINE]루틴항목[/ROUTINE][LONGTERM]장기목표[/LONGTERM][DONE]최근완료[/DONE]</TASKS>
+const TASKS_REGEX = /<TASKS>\s*\[URGENT\]([\s\S]*?)\[\/URGENT\]\s*\[WEEK\]([\s\S]*?)\[\/WEEK\]\s*\[ROUTINE\]([\s\S]*?)\[\/ROUTINE\]\s*\[LONGTERM\]([\s\S]*?)\[\/LONGTERM\]\s*\[DONE\]([\s\S]*?)\[\/DONE\]\s*<\/TASKS>/g;
+// TIMELINE_REGEX: Schedule with day, weather, and events
+// Example: <TIMELINE>[DAY]2024/01/15 (월)[/DAY][WEATHER]맑음, 5°C[/WEATHER][EVENTS]유형|시간|제목|장소§구분[/EVENTS]</TIMELINE>
+const TIMELINE_REGEX = /<TIMELINE>\s*\[DAY\]([\s\S]*?)\[\/DAY\]\s*\[WEATHER\]([\s\S]*?)\[\/WEATHER\]\s*\[EVENTS\]([\s\S]*?)\[\/EVENTS\]\s*<\/TIMELINE>/g;
+// INVENTORY_REGEX: Inventory check with items and low stock alerts
+// Example: <INVENTORY>[ITEMS]품명:수량:단위§구분[/ITEMS][LOW]부족품명:수량:단위§구분[/LOW]</INVENTORY>
+const INVENTORY_REGEX = /<INVENTORY>\s*\[ITEMS\]([\s\S]*?)\[\/ITEMS\]\s*\[LOW\]([\s\S]*?)\[\/LOW\]\s*<\/INVENTORY>/g;
 
 // Extension state
 let panelElement = null;
@@ -816,11 +831,10 @@ function initObserver() {
                             }
                         }
                         
-                        // Parse BAKE_STATUS tags first (detailed format with [MENU], [STEPS], [PCT])
-                        let bakeStatusHandled = false;
+                        // Parse BAKE_STATUS tags (detailed format with [MENU], [STEPS], [PCT])
+                        // Supports both WI format (상태|단계명|시간|비고§구분) and QR format (newline-separated emoji steps)
                         const bakeStatusMatches = text.matchAll(BAKE_STATUS_REGEX);
                         for (const match of bakeStatusMatches) {
-                            bakeStatusHandled = true;
                             const menu = match[1].trim();
                             const start = match[2].trim();
                             const end = match[3].trim();
@@ -830,63 +844,97 @@ function initObserver() {
                             if (bakingModule) {
                                 console.log(`SSTSSD: Auto-detected baking status: ${menu} ${pct}%`);
                                 
-                                // Parse steps - can be either icon-only ("✅ ✅ 🔄") or detailed ("✅ 재료계량 (14:00~14:15)")
-                                let stepLines = stepsStr.split('\n').filter(l => l.trim());
-                                
-                                // If only one line and it contains multiple status icons, try splitting by spaces
-                                if (stepLines.length <= 1) {
-                                    const singleLine = stepsStr.trim();
-                                    const iconPattern = /[✅🔄⏸️⬜]/g;
-                                    const icons = singleLine.match(iconPattern);
-                                    if (icons && icons.length > 1) {
-                                        // Split by icon boundaries
-                                        stepLines = singleLine.split(/\s+/).filter(l => l.trim());
-                                    }
-                                }
-                                
                                 const parsedSteps = [];
                                 
-                                for (const line of stepLines) {
-                                    const trimmed = line.trim();
+                                // Try WI format first: status|name|time|note§step2§step3...
+                                if (stepsStr.includes('§')) {
+                                    const wiSteps = stepsStr.split('§');
+                                    for (const wiStep of wiSteps) {
+                                        const parts = wiStep.trim().split('|');
+                                        if (parts.length >= 2) {
+                                            // parts[0] = status icon/text, parts[1] = name, parts[2] = time, parts[3] = note
+                                            const statusPart = parts[0].trim();
+                                            let status = 'pending';
+                                            let icon = '⬜';
+                                            
+                                            // Map status text or icon
+                                            if (statusPart === '✅' || statusPart.includes('완료') || statusPart.includes('done')) {
+                                                status = 'completed';
+                                                icon = '✅';
+                                            } else if (statusPart === '🔄' || statusPart.includes('진행') || statusPart.includes('progress')) {
+                                                status = 'in_progress';
+                                                icon = '🔄';
+                                            } else if (statusPart === '⏸️' || statusPart.includes('일시정지') || statusPart.includes('pause')) {
+                                                status = 'paused';
+                                                icon = '⏸️';
+                                            }
+                                            
+                                            parsedSteps.push({
+                                                name: parts[1].trim(),
+                                                estimatedTime: parts.length > 2 ? parts[2].trim() : '',
+                                                status: status,
+                                                icon: icon,
+                                                note: parts.length > 3 ? parts[3].trim() : ''
+                                            });
+                                        }
+                                    }
+                                } else {
+                                    // QR format: newline-separated or space-separated icons
+                                    let stepLines = stepsStr.split('\n').filter(l => l.trim());
                                     
-                                    // Detect status icon
-                                    let status = 'pending';
-                                    let icon = '⬜';
-                                    if (trimmed.startsWith('✅')) {
-                                        status = 'completed';
-                                        icon = '✅';
-                                    } else if (trimmed.startsWith('🔄')) {
-                                        status = 'in_progress';
-                                        icon = '🔄';
-                                    } else if (trimmed.startsWith('⏸️')) {
-                                        status = 'paused';
-                                        icon = '⏸️';
-                                    } else if (trimmed.startsWith('⬜')) {
-                                        status = 'pending';
-                                        icon = '⬜';
+                                    // If only one line and it contains multiple status icons, try splitting by spaces
+                                    if (stepLines.length <= 1) {
+                                        const singleLine = stepsStr.trim();
+                                        const iconPattern = /[✅🔄⏸️⬜]/g;
+                                        const icons = singleLine.match(iconPattern);
+                                        if (icons && icons.length > 1) {
+                                            // Split by icon boundaries
+                                            stepLines = singleLine.split(/\s+/).filter(l => l.trim());
+                                        }
                                     }
                                     
-                                    // Extract step name and time if present
-                                    const withoutIcon = trimmed.replace(/^[✅🔄⏸️⬜]\s*/, '');
-                                    if (withoutIcon) {
-                                        // Try to extract name and time like "재료계량 (14:00~14:15)"
-                                        const nameMatch = withoutIcon.match(/^(.+?)(?:\s*\((.+?)\))?$/);
-                                        if (nameMatch) {
+                                    for (const line of stepLines) {
+                                        const trimmed = line.trim();
+                                        
+                                        // Detect status icon
+                                        let status = 'pending';
+                                        let icon = '⬜';
+                                        if (trimmed.startsWith('✅')) {
+                                            status = 'completed';
+                                            icon = '✅';
+                                        } else if (trimmed.startsWith('🔄')) {
+                                            status = 'in_progress';
+                                            icon = '🔄';
+                                        } else if (trimmed.startsWith('⏸️')) {
+                                            status = 'paused';
+                                            icon = '⏸️';
+                                        } else if (trimmed.startsWith('⬜')) {
+                                            status = 'pending';
+                                            icon = '⬜';
+                                        }
+                                        
+                                        // Extract step name and time if present
+                                        const withoutIcon = trimmed.replace(/^[✅🔄⏸️⬜]\s*/, '');
+                                        if (withoutIcon) {
+                                            // Try to extract name and time like "재료계량 (14:00~14:15)"
+                                            const nameMatch = withoutIcon.match(/^(.+?)(?:\s*\((.+?)\))?$/);
+                                            if (nameMatch) {
+                                                parsedSteps.push({
+                                                    name: nameMatch[1].trim(),
+                                                    estimatedTime: nameMatch[2] ? nameMatch[2].trim() : '',
+                                                    status: status,
+                                                    icon: icon
+                                                });
+                                            }
+                                        } else {
+                                            // Just an icon without text - still count as a step
                                             parsedSteps.push({
-                                                name: nameMatch[1].trim(),
-                                                estimatedTime: nameMatch[2] ? nameMatch[2].trim() : '',
+                                                name: '',
+                                                estimatedTime: '',
                                                 status: status,
                                                 icon: icon
                                             });
                                         }
-                                    } else {
-                                        // Just an icon without text - still count as a step
-                                        parsedSteps.push({
-                                            name: '',
-                                            estimatedTime: '',
-                                            status: status,
-                                            icon: icon
-                                        });
                                     }
                                 }
                                 
@@ -906,30 +954,10 @@ function initObserver() {
                             }
                         }
                         
-                        // Only parse simple BAKE tags if no BAKE_STATUS was found
-                        if (!bakeStatusHandled) {
-                            const bakeMatches = text.matchAll(BAKE_REGEX);
-                            for (const match of bakeMatches) {
-                                const menuName = match[1];
-                                const quantity = parseInt(match[2]);
-                                const deadline = match[3] || null;
-                                if (bakingModule && quantity > 0) {
-                                    console.log(`SSTSSD: Auto-detected baking plan: ${menuName} ${quantity}개`);
-                                    bakingModule.addRecipe({
-                                        name: menuName,
-                                        yieldQty: quantity,
-                                        deadline: deadline
-                                    });
-                                    renderAllModules();
-                                }
-                            }
-                        }
-                        
-                        // Parse SHOP_DETAILED tags first (detailed shopping lists with [STORE], [ITEMS], [TOTAL])
-                        let shopDetailedHandled = false;
+                        // Parse SHOP_DETAILED tags (detailed shopping lists with [STORE], [ITEMS], [TOTAL])
+                        // Supports both WI format (품명|가격§구분) and QR format (🔸 item — qty — price원)
                         const shopDetailedMatches = text.matchAll(SHOP_DETAILED_REGEX);
                         for (const match of shopDetailedMatches) {
-                            shopDetailedHandled = true;
                             const store = match[1].trim();
                             const when = match[2].trim();
                             const itemsText = match[3].trim();
@@ -938,39 +966,58 @@ function initObserver() {
                             if (bakingModule) {
                                 console.log(`SSTSSD: Auto-detected detailed shopping list from ${store}`);
                                 
-                                // Parse ITEMS - each line format: "🔸 name — qty unit — price원"
                                 const parsedItems = [];
-                                const itemLines = itemsText.split('\n').filter(l => l.trim());
                                 
-                                for (const line of itemLines) {
-                                    const trimmed = line.trim();
-                                    // Try regex first: /🔸\s*(.+?)\s*—\s*(\d+(?:\.\d+)?)\s*(\S+)\s*—\s*([\d,]+)원/
-                                    const itemMatch = trimmed.match(/🔸\s*(.+?)\s*—\s*(\d+(?:\.\d+)?)\s*(\S+)\s*—\s*([\d,]+)원/);
-                                    if (itemMatch) {
-                                        parsedItems.push({
-                                            name: itemMatch[1].trim(),
-                                            qty: parseFloat(itemMatch[2]),
-                                            unit: itemMatch[3].trim(),
-                                            price: parseInt(itemMatch[4].replace(/,/g, ''))
-                                        });
-                                    } else {
-                                        // Fallback: split by —
-                                        const parts = trimmed.replace(/^🔸\s*/, '').split('—').map(p => p.trim());
-                                        if (parts.length >= 3) {
-                                            // parts[0] = name, parts[1] = "200g", parts[2] = "4,500원"
-                                            const qtyUnitMatch = parts[1].match(/(\d+(?:\.\d+)?)\s*(\S+)/);
-                                            const priceMatch = parts[2].match(/([\d,]+)원/);
-                                            
-                                            if (qtyUnitMatch && priceMatch) {
-                                                parsedItems.push({
-                                                    name: parts[0],
-                                                    qty: parseFloat(qtyUnitMatch[1]),
-                                                    unit: qtyUnitMatch[2],
-                                                    price: parseInt(priceMatch[1].replace(/,/g, ''))
-                                                });
-                                            } else {
-                                                // Fallback failed too
-                                                console.warn(`SSTSSD: Could not parse shopping item line: "${trimmed}". Expected format: "🔸 아몬드 가루 — 200g — 4,500원"`);
+                                // Try WI format first: 품명|가격§구분 (with optional qty and unit defaults)
+                                if (itemsText.includes('§') && !itemsText.includes('🔸')) {
+                                    const wiItems = itemsText.split('§');
+                                    for (const wiItem of wiItems) {
+                                        const parts = wiItem.trim().split('|');
+                                        if (parts.length >= 2) {
+                                            // WI format: name|price (defaults to qty=1, unit='개' for generic items)
+                                            // Note: For specific units, use QR format with emoji and dash separator
+                                            parsedItems.push({
+                                                name: parts[0].trim(),
+                                                qty: 1,
+                                                unit: "개",  // Default unit for WI format (use QR format for specific units)
+                                                price: parseInt(parts[1].replace(/[^\d]/g, '')) || 0
+                                            });
+                                        }
+                                    }
+                                } else {
+                                    // QR format: each line format: "🔸 name — qty unit — price원"
+                                    const itemLines = itemsText.split('\n').filter(l => l.trim());
+                                    
+                                    for (const line of itemLines) {
+                                        const trimmed = line.trim();
+                                        // Try regex first: /🔸\s*(.+?)\s*—\s*(\d+(?:\.\d+)?)\s*(\S+)\s*—\s*([\d,]+)원/
+                                        const itemMatch = trimmed.match(/🔸\s*(.+?)\s*—\s*(\d+(?:\.\d+)?)\s*(\S+)\s*—\s*([\d,]+)원/);
+                                        if (itemMatch) {
+                                            parsedItems.push({
+                                                name: itemMatch[1].trim(),
+                                                qty: parseFloat(itemMatch[2]),
+                                                unit: itemMatch[3].trim(),
+                                                price: parseInt(itemMatch[4].replace(/,/g, ''))
+                                            });
+                                        } else {
+                                            // Fallback: split by —
+                                            const parts = trimmed.replace(/^🔸\s*/, '').split('—').map(p => p.trim());
+                                            if (parts.length >= 3) {
+                                                // parts[0] = name, parts[1] = "200g", parts[2] = "4,500원"
+                                                const qtyUnitMatch = parts[1].match(/(\d+(?:\.\d+)?)\s*(\S+)/);
+                                                const priceMatch = parts[2].match(/([\d,]+)원/);
+                                                
+                                                if (qtyUnitMatch && priceMatch) {
+                                                    parsedItems.push({
+                                                        name: parts[0],
+                                                        qty: parseFloat(qtyUnitMatch[1]),
+                                                        unit: qtyUnitMatch[2],
+                                                        price: parseInt(priceMatch[1].replace(/,/g, ''))
+                                                    });
+                                                } else {
+                                                    // Fallback failed too
+                                                    console.warn(`SSTSSD: Could not parse shopping item line: "${trimmed}". Expected QR format: "🔸 아몬드 가루 — 200g — 4,500원" or WI format: "품명|가격§구분" (qty/unit default to 1개)`);
+                                                }
                                             }
                                         }
                                     }
@@ -1027,43 +1074,158 @@ function initObserver() {
                             }
                         }
                         
-                        // Only parse legacy SHOP tags if no SHOP_DETAILED was found
-                        if (!shopDetailedHandled) {
-                            const shopMatches = text.matchAll(SHOP_REGEX);
-                            const shopItems = [];
-                            for (const match of shopMatches) {
-                                shopItems.push({
-                                    name: match[1],
-                                    qty: parseInt(match[2]),
-                                    unit: match[3],
-                                    price: parseInt(match[4]),
-                                    location: match[5] || "온라인"
-                                });
-                            }
-                            if (shopItems.length > 0 && bakingModule) {
-                                console.log(`SSTSSD: Auto-detected ${shopItems.length} shopping items`);
-                            // Group by location
-                            const grouped = {};
-                            shopItems.forEach(item => {
-                                if (!grouped[item.location]) grouped[item.location] = [];
-                                grouped[item.location].push(item);
-                            });
+                        // Parse BANK tags (financial status with balance, savings, income/expense)
+                        const bankMatches = text.matchAll(BANK_REGEX);
+                        for (const match of bankMatches) {
+                            const balance = match[1].trim();
+                            const savings = match[2].trim();
+                            const goal = match[3].trim();
+                            const goalPct = match[4].trim();
+                            const inTotal = match[5].trim();
+                            const inList = match[6].trim();
+                            const outTotal = match[7].trim();
+                            const outList = match[8].trim();
+                            const net = match[9].trim();
                             
-                            Object.entries(grouped).forEach(([location, items]) => {
-                                items.forEach(item => {
-                                    bakingModule.addToShoppingList(
-                                        item.name,
-                                        item.qty,
-                                        item.unit,
-                                        location,
-                                        item.price,
-                                        ["AI 자동 감지"]
-                                    );
-                                });
-                            });
-                            renderAllModules();
+                            if (balanceModule) {
+                                console.log(`SSTSSD: Auto-detected BANK tag - Balance: ${balance}, Savings: ${savings}`);
+                                // Note: This is informational only for now. Future enhancement could sync with actual balance data.
+                                // For now, just log it so users know the tag was detected.
+                                // Could add validation to check if AI's reported balance matches actual balance.
+                            }
                         }
-                    }
+                        
+                        // Parse TASKS tags (to-do list with categorized items)
+                        const tasksMatches = text.matchAll(TASKS_REGEX);
+                        for (const match of tasksMatches) {
+                            const urgent = match[1].trim();
+                            const week = match[2].trim();
+                            const routine = match[3].trim();
+                            const longterm = match[4].trim();
+                            const done = match[5].trim();
+                            
+                            if (todoModule) {
+                                console.log(`SSTSSD: Auto-detected TASKS tag`);
+                                
+                                // Parse urgent items (semicolon-separated)
+                                if (urgent) {
+                                    const urgentItems = urgent.split(';').map(t => t.trim()).filter(t => t);
+                                    for (const item of urgentItems) {
+                                        // Check if item doesn't already exist
+                                        const exists = todoModule.settings.todo.items.some(i => i.title === item);
+                                        if (!exists) {
+                                            const today = todoModule.getRpDate();
+                                            todoModule.addItem({
+                                                title: item,
+                                                deadline: new Date(today.getTime() + MS_PER_DAY).toISOString().split('T')[0], // Tomorrow
+                                                estimatedTime: '',
+                                                memo: 'AI 자동 감지 (긴급)'
+                                            });
+                                        }
+                                    }
+                                }
+                                
+                                // Parse weekly items
+                                if (week) {
+                                    const weekItems = week.split(';').map(t => t.trim()).filter(t => t);
+                                    for (const item of weekItems) {
+                                        const exists = todoModule.settings.todo.items.some(i => i.title === item);
+                                        if (!exists) {
+                                            const today = todoModule.getRpDate();
+                                            todoModule.addItem({
+                                                title: item,
+                                                deadline: new Date(today.getTime() + 7 * MS_PER_DAY).toISOString().split('T')[0], // 1 week
+                                                estimatedTime: '',
+                                                memo: 'AI 자동 감지 (이번 주)'
+                                            });
+                                        }
+                                    }
+                                }
+                                
+                                // Note: routine and longterm items are informational only (don't auto-add to avoid clutter)
+                                // done items are also informational (they're already completed)
+                                
+                                renderAllModules();
+                            }
+                        }
+                        
+                        // Parse TIMELINE tags (schedule with day, weather, and events)
+                        const timelineMatches = text.matchAll(TIMELINE_REGEX);
+                        for (const match of timelineMatches) {
+                            const day = match[1].trim();
+                            const weather = match[2].trim();
+                            const events = match[3].trim();
+                            
+                            if (scheduleModule) {
+                                console.log(`SSTSSD: Auto-detected TIMELINE tag for ${day}`);
+                                
+                                // Parse events (format: 유형|시간범위|제목|장소§구분)
+                                if (events) {
+                                    const eventList = events.split('§').map(e => e.trim()).filter(e => e);
+                                    for (const event of eventList) {
+                                        const parts = event.split('|');
+                                        if (parts.length >= 3) {
+                                            const type = parts[0].trim();
+                                            const timeRange = parts[1].trim();
+                                            const title = parts[2].trim();
+                                            const location = parts.length > 3 ? parts[3].trim() : '';
+                                            
+                                            // Parse date from day (YYYY/MM/DD format)
+                                            const dateMatch = day.match(/(\d{4})\/(\d{2})\/(\d{2})/);
+                                            if (dateMatch) {
+                                                const eventDate = `${dateMatch[1]}-${dateMatch[2]}-${dateMatch[3]}`;
+                                                
+                                                // Check if appointment doesn't already exist
+                                                const exists = scheduleModule.settings.schedule.appointments.some(a => 
+                                                    a.date === eventDate && a.title === title
+                                                );
+                                                if (!exists) {
+                                                    scheduleModule.addAppointment({
+                                                        date: eventDate,
+                                                        time: timeRange,
+                                                        title: title,
+                                                        location: location,
+                                                        participants: '',
+                                                        memo: `AI 자동 감지 (${type})`
+                                                    });
+                                                }
+                                            }
+                                        }
+                                    }
+                                    renderAllModules();
+                                }
+                            }
+                        }
+                        
+                        // Parse INVENTORY tags (inventory check with items and low stock)
+                        const inventoryMatches = text.matchAll(INVENTORY_REGEX);
+                        for (const match of inventoryMatches) {
+                            const items = match[1].trim();
+                            const low = match[2].trim();
+                            
+                            if (inventoryModule) {
+                                console.log(`SSTSSD: Auto-detected INVENTORY tag`);
+                                
+                                // Parse items (format: 품명:수량:단위§구분)
+                                // Note: This is informational only for now. Auto-syncing inventory could be dangerous
+                                // as it might overwrite user's manual changes. Better to just log and let user review.
+                                
+                                if (low) {
+                                    // Parse low stock items for warning
+                                    const lowItems = low.split('§').map(i => i.trim()).filter(i => i);
+                                    for (const item of lowItems) {
+                                        const parts = item.split(':');
+                                        if (parts.length >= 2) {
+                                            const name = parts[0].trim();
+                                            const qty = parts[1].trim();
+                                            console.warn(`SSTSSD: Low stock alert from AI - ${name}: ${qty}`);
+                                        }
+                                    }
+                                }
+                                // Note: Not auto-updating inventory to avoid data conflicts
+                                // This is intentionally conservative to prevent accidental data loss
+                            }
+                        }
                     }
                 }
             }
