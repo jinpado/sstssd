@@ -38,6 +38,7 @@ let shopModule = null;
 let instagramModule = null;
 let observer = null;
 let currentChatId = null;
+const processedNodes = new WeakSet();  // Track processed DOM nodes to prevent duplicates
 
 // Initialize extension settings
 function initSettings() {
@@ -712,7 +713,8 @@ function initObserver() {
         observer = new MutationObserver((mutations) => {
             for (const mutation of mutations) {
                 for (const node of mutation.addedNodes) {
-                    if (node.nodeType === Node.ELEMENT_NODE) {
+                    if (node.nodeType === Node.ELEMENT_NODE && !processedNodes.has(node)) {
+                        processedNodes.add(node);
                         const text = node.textContent || '';
                         
                         // Parse DATE tags from AI responses
@@ -814,26 +816,11 @@ function initObserver() {
                             }
                         }
                         
-                        // Parse BAKE tags (baking plans from AI)
-                        const bakeMatches = text.matchAll(BAKE_REGEX);
-                        for (const match of bakeMatches) {
-                            const menuName = match[1];
-                            const quantity = parseInt(match[2]);
-                            const deadline = match[3] || null;
-                            if (bakingModule && quantity > 0) {
-                                console.log(`SSTSSD: Auto-detected baking plan: ${menuName} ${quantity}개`);
-                                bakingModule.addRecipe({
-                                    name: menuName,
-                                    yieldQty: quantity,
-                                    deadline: deadline
-                                });
-                                renderAllModules();
-                            }
-                        }
-                        
-                        // Parse BAKE_STATUS tags (baking progress from AI)
+                        // Parse BAKE_STATUS tags first (detailed format with [MENU], [STEPS], [PCT])
+                        let bakeStatusHandled = false;
                         const bakeStatusMatches = text.matchAll(BAKE_STATUS_REGEX);
                         for (const match of bakeStatusMatches) {
+                            bakeStatusHandled = true;
                             const menu = match[1].trim();
                             const start = match[2].trim();
                             const end = match[3].trim();
@@ -844,7 +831,19 @@ function initObserver() {
                                 console.log(`SSTSSD: Auto-detected baking status: ${menu} ${pct}%`);
                                 
                                 // Parse steps - can be either icon-only ("✅ ✅ 🔄") or detailed ("✅ 재료계량 (14:00~14:15)")
-                                const stepLines = stepsStr.split('\n').filter(l => l.trim());
+                                let stepLines = stepsStr.split('\n').filter(l => l.trim());
+                                
+                                // If only one line and it contains multiple status icons, try splitting by spaces
+                                if (stepLines.length <= 1) {
+                                    const singleLine = stepsStr.trim();
+                                    const iconPattern = /[✅🔄⏸️⬜]/g;
+                                    const icons = singleLine.match(iconPattern);
+                                    if (icons && icons.length > 1) {
+                                        // Split by icon boundaries
+                                        stepLines = singleLine.split(/\s+/).filter(l => l.trim());
+                                    }
+                                }
+                                
                                 const parsedSteps = [];
                                 
                                 for (const line of stepLines) {
@@ -907,9 +906,30 @@ function initObserver() {
                             }
                         }
                         
-                        // Parse SHOP_DETAILED tags (detailed shopping lists from AI)
+                        // Only parse simple BAKE tags if no BAKE_STATUS was found
+                        if (!bakeStatusHandled) {
+                            const bakeMatches = text.matchAll(BAKE_REGEX);
+                            for (const match of bakeMatches) {
+                                const menuName = match[1];
+                                const quantity = parseInt(match[2]);
+                                const deadline = match[3] || null;
+                                if (bakingModule && quantity > 0) {
+                                    console.log(`SSTSSD: Auto-detected baking plan: ${menuName} ${quantity}개`);
+                                    bakingModule.addRecipe({
+                                        name: menuName,
+                                        yieldQty: quantity,
+                                        deadline: deadline
+                                    });
+                                    renderAllModules();
+                                }
+                            }
+                        }
+                        
+                        // Parse SHOP_DETAILED tags first (detailed shopping lists with [STORE], [ITEMS], [TOTAL])
+                        let shopDetailedHandled = false;
                         const shopDetailedMatches = text.matchAll(SHOP_DETAILED_REGEX);
                         for (const match of shopDetailedMatches) {
+                            shopDetailedHandled = true;
                             const store = match[1].trim();
                             const when = match[2].trim();
                             const itemsText = match[3].trim();
@@ -948,6 +968,9 @@ function initObserver() {
                                                     unit: qtyUnitMatch[2],
                                                     price: parseInt(priceMatch[1].replace(/,/g, ''))
                                                 });
+                                            } else {
+                                                // Fallback failed too
+                                                console.warn(`SSTSSD: Could not parse shopping item line: "${trimmed}"`);
                                             }
                                         }
                                     }
@@ -957,10 +980,12 @@ function initObserver() {
                                 const totalMatch = totalText.match(/([\d,]+)원/);
                                 const totalPrice = totalMatch ? parseInt(totalMatch[1].replace(/,/g, '')) : 0;
                                 
-                                // Find currently in-progress recipe to link
+                                // Find currently in-progress recipe to link, or fall back to most recent pending
                                 let linkedRecipe = null;
                                 if (bakingModule.settings.baking && bakingModule.settings.baking.recipes) {
-                                    linkedRecipe = bakingModule.settings.baking.recipes.find(r => r.status === 'in_progress');
+                                    // Prefer in_progress, then fall back to most recent pending
+                                    linkedRecipe = bakingModule.settings.baking.recipes.find(r => r.status === 'in_progress')
+                                        || bakingModule.settings.baking.recipes.filter(r => r.status === 'pending').pop();
                                 }
                                 
                                 // Add to shopping list using new structure
@@ -992,20 +1017,21 @@ function initObserver() {
                             }
                         }
                         
-                        // Parse SHOP tags (shopping items from AI - legacy format)
-                        const shopMatches = text.matchAll(SHOP_REGEX);
-                        const shopItems = [];
-                        for (const match of shopMatches) {
-                            shopItems.push({
-                                name: match[1],
-                                qty: parseInt(match[2]),
-                                unit: match[3],
-                                price: parseInt(match[4]),
-                                location: match[5] || "온라인"
-                            });
-                        }
-                        if (shopItems.length > 0 && bakingModule) {
-                            console.log(`SSTSSD: Auto-detected ${shopItems.length} shopping items`);
+                        // Only parse legacy SHOP tags if no SHOP_DETAILED was found
+                        if (!shopDetailedHandled) {
+                            const shopMatches = text.matchAll(SHOP_REGEX);
+                            const shopItems = [];
+                            for (const match of shopMatches) {
+                                shopItems.push({
+                                    name: match[1],
+                                    qty: parseInt(match[2]),
+                                    unit: match[3],
+                                    price: parseInt(match[4]),
+                                    location: match[5] || "온라인"
+                                });
+                            }
+                            if (shopItems.length > 0 && bakingModule) {
+                                console.log(`SSTSSD: Auto-detected ${shopItems.length} shopping items`);
                             // Group by location
                             const grouped = {};
                             shopItems.forEach(item => {
@@ -1027,6 +1053,7 @@ function initObserver() {
                             });
                             renderAllModules();
                         }
+                    }
                     }
                 }
             }
