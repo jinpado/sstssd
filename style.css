@@ -1629,6 +1629,118 @@ textarea.sstssd-input {
     flex-wrap: wrap;
 }
 
+/* Step-by-step baking styles */
+.sstssd-baking-in-progress {
+    border: 2px solid #10b981;
+}
+
+.sstssd-baking-status {
+    color: #10b981;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.sstssd-baking-progress-bar {
+    background: #1e1e3a;
+    height: 24px;
+    border-radius: 4px;
+    position: relative;
+    margin: 10px 0;
+    overflow: hidden;
+}
+
+.sstssd-baking-progress-fill {
+    background: linear-gradient(90deg, #10b981, #34d399);
+    height: 100%;
+    transition: width 0.3s ease;
+}
+
+.sstssd-baking-progress-text {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 12px;
+    font-weight: 600;
+    color: #e0e0e0;
+}
+
+.sstssd-baking-steps {
+    margin: 10px 0;
+}
+
+.sstssd-baking-step {
+    background: #1e1e3a;
+    padding: 8px;
+    margin-bottom: 6px;
+    border-radius: 4px;
+    border-left: 2px solid #6b7280;
+}
+
+.sstssd-baking-step-current {
+    border-left-color: #10b981;
+    background: #1a2e2a;
+}
+
+.sstssd-baking-step-in_progress {
+    border-left-color: #3b82f6;
+}
+
+.sstssd-baking-step-completed {
+    border-left-color: #10b981;
+    opacity: 0.7;
+}
+
+.sstssd-baking-step-paused {
+    border-left-color: #f59e0b;
+}
+
+.sstssd-baking-step-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 6px;
+}
+
+.sstssd-baking-step-icon {
+    font-size: 16px;
+}
+
+.sstssd-baking-step-name {
+    flex: 1;
+    font-size: 13px;
+    font-weight: 500;
+}
+
+.sstssd-baking-step-time {
+    font-size: 12px;
+    color: #9ca3af;
+}
+
+.sstssd-baking-step-actions {
+    display: flex;
+    gap: 4px;
+    flex-wrap: wrap;
+}
+
+.sstssd-btn-success {
+    background: #10b981 !important;
+    color: #fff !important;
+}
+
+.sstssd-btn-success:hover {
+    background: #059669 !important;
+}
+
+.sstssd-btn-danger {
+    background: #ef4444 !important;
+    color: #fff !important;
+}
+
+.sstssd-btn-danger:hover {
+    background: #dc2626 !important;
+}
+
 /* Shopping list styles */
 .sstssd-shopping-item-unpriced {
     border-left: 2px solid #f59e0b;
