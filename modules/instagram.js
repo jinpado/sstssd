@@ -530,7 +530,7 @@ export class InstagramModule {
         const reactionIcon = {
             hot2: '🔥🔥',
             hot: '🔥',
-            normal: '보통',
+            normal: '😐',
             low: '📉'
         };
         
