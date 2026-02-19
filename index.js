@@ -974,15 +974,17 @@ function initObserver() {
                                         status: "pending"
                                     });
                                     
-                                    // If there's a linked recipe, update its ingredients
+                                    // If there's a linked recipe, update its ingredients (only if empty)
                                     if (linkedRecipe) {
-                                        linkedRecipe.ingredients = parsedItems.map(item => ({
-                                            name: item.name,
-                                            qty: item.qty,
-                                            unit: item.unit,
-                                            price: item.price
-                                        }));
-                                        bakingModule.saveCallback();
+                                        if (!linkedRecipe.ingredients || linkedRecipe.ingredients.length === 0) {
+                                            linkedRecipe.ingredients = parsedItems.map(item => ({
+                                                name: item.name,
+                                                qty: item.qty,
+                                                unit: item.unit,
+                                                price: item.price
+                                            }));
+                                            bakingModule.saveCallback();
+                                        }
                                     }
                                     
                                     renderAllModules();

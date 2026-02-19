@@ -292,7 +292,7 @@ export class BakingModule {
             this.settings.baking.bakingHistory = this.settings.baking.bakingHistory.slice(0, 30);
         }
         
-        // 4. 레시피 상태 변경: completed로 변경하고 나중에 삭제 옵션
+        // 4. 레시피 상태 변경: completed로 변경 (완료된 레시피는 UI에서 자동으로 숨김 처리)
         recipe.status = 'completed';
         recipe.completedAt = this.formatDate(this.getRpDate());
         
@@ -1287,7 +1287,6 @@ export class BakingModule {
     }
     
     // ===== 이벤트 리스너 =====
-    // ===== 이벤트 리스너 =====
     attachEventListeners(container) {
         // 레시피 추가 버튼
         const addRecipeBtn = container.querySelector('[data-action="add-recipe"]');
@@ -1399,7 +1398,7 @@ export class BakingModule {
         // 레시피 완료 버튼 (PCT 100% 도달 시)
         const completeRecipeBtns = container.querySelectorAll('[data-action="complete-recipe"]');
         completeRecipeBtns.forEach(btn => {
-            btn.addEventListener('click', async (e) => {
+            btn.addEventListener('click', (e) => {
                 e.stopPropagation();
                 const recipeId = parseInt(btn.dataset.id);
                 const recipe = this.settings.baking.recipes.find(r => r.id === recipeId);
