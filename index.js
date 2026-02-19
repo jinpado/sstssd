@@ -941,12 +941,63 @@ function buildDashboardPrompt() {
     if (bakingModule && chatData.baking) {
         const activeRecipes = chatData.baking.recipes.filter(r => r.status === 'in_progress');
         if (activeRecipes.length > 0) {
-            prompt += `\n[🧁 Active Baking]\n`;
+            prompt += `\n[🧁 Baking In Progress]\n`;
             activeRecipes.forEach(r => {
-                prompt += `- ${r.name} ×${r.yieldQty}`;
-                if (r.deadline) prompt += ` (납품: ${r.deadline})`;
+                const multiplier = r.multiplier || 1;
+                prompt += `레시피: ${r.name} ×${r.yieldQty * multiplier}${r.yieldUnit}\n`;
+                
+                if (r.deadline) {
+                    prompt += `납품 기한: ${r.deadline}\n`;
+                }
+                
+                // Add step progress
+                if (r.steps && r.steps.length > 0) {
+                    const currentStepIndex = r.currentStep || 0;
+                    const currentStep = r.steps[currentStepIndex];
+                    const completedSteps = r.steps.filter(s => s.status === 'completed').length;
+                    
+                    prompt += `현재 단계: "${currentStep.name}" (${completedSteps + 1}/${r.steps.length}단계)\n`;
+                    prompt += `예상 시간: ${currentStep.estimatedTime}\n`;
+                    
+                    if (currentStep.status === 'in_progress') {
+                        prompt += `상태: 진행 중 🔄\n`;
+                        prompt += `→ 캐릭터가 이 단계의 작업을 하고 있는 것으로 묘사해주세요. 구체적인 동작과 감각을 포함해주세요.\n`;
+                    } else if (currentStep.status === 'paused') {
+                        prompt += `상태: 일시정지 ⏸️ (다른 작업 가능)\n`;
+                    }
+                }
                 prompt += `\n`;
             });
+        }
+        
+        // Add event notifications
+        if (chatData.baking.currentEvent) {
+            const event = chatData.baking.currentEvent;
+            const eventAge = Date.now() - event.timestamp;
+            
+            // Only show recent events (within 5 seconds)
+            if (eventAge < 5000) {
+                prompt += `\n[🔔 Recent Baking Event]\n`;
+                
+                switch (event.type) {
+                    case 'step_start':
+                        prompt += `시아가 "${event.stepName}" 단계를 시작합니다.\n`;
+                        prompt += `→ 이 단계에서 시아가 무엇을 하는지 구체적으로 묘사해주세요.\n`;
+                        break;
+                    case 'step_pause':
+                        prompt += `시아가 "${event.stepName}" 작업을 잠시 멈추고 다른 일을 합니다.\n`;
+                        break;
+                    case 'step_complete':
+                        prompt += `시아가 "${event.stepName}" 단계를 마쳤습니다.\n`;
+                        prompt += `→ 완료된 작업의 결과물을 간단히 언급해주세요.\n`;
+                        break;
+                    case 'baking_complete':
+                        prompt += `${event.recipeName} 베이킹이 완전히 완료되었습니다! 🎉\n`;
+                        prompt += `→ 완성된 제품의 외관과 향을 묘사해주세요.\n`;
+                        break;
+                }
+                prompt += `\n`;
+            }
         }
     }
     
