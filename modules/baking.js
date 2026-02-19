@@ -305,9 +305,12 @@ export class BakingModule {
                 await context.executeSlashCommandsWithOptions(
                     `/setvar key=bake_active "true"`
                 );
-                // Set bake_data with detailed info
+                // Set bake_data with detailed info (steps empty if not yet generated)
+                const stepsInfo = recipe.steps && recipe.steps.length > 0 ? 
+                    recipe.steps.map(s => s.name).join(' | ') : 
+                    'AI 생성 대기';
                 await context.executeSlashCommandsWithOptions(
-                    `/setvar key=bake_data "menu:${recipe.name}|qty:${recipe.yieldQty * multiplier}|unit:${recipe.yieldUnit}"`
+                    `/setvar key=bake_data "menu:${recipe.name}|qty:${recipe.yieldQty * multiplier}|unit:${recipe.yieldUnit}|steps:${stepsInfo}"`
                 );
                 console.log('SSTSSD: QR variables set for baking:', recipe.name);
             }
@@ -959,10 +962,10 @@ export class BakingModule {
                             recipe.ingredients.map(ing => `
                                 <span class="sstssd-ingredient-tag">${ing.name} ${ing.qty}${ing.unit}</span>
                             `).join('') :
-                            '<span style="color: #9ca3af; font-size: 13px;">📋 재료: 시작 시 AI가 자동 계산</span>'
+                            '<span class="sstssd-ai-placeholder">📋 재료: 시작 시 AI가 자동 계산</span>'
                         }
                     </div>
-                    ${!hasSteps ? '<div style="color: #9ca3af; font-size: 13px; margin-top: 4px;">📝 단계: 시작 시 AI가 자동 계산</div>' : ''}
+                    ${!hasSteps ? '<div class="sstssd-ai-placeholder-steps">📝 단계: 시작 시 AI가 자동 계산</div>' : ''}
                     <div class="sstssd-baking-actions">
                         <button class="sstssd-btn sstssd-btn-sm sstssd-btn-success sstssd-btn-start-baking" data-action="start-step-baking" data-id="${recipe.id}">▶ 시작</button>
                         <button class="sstssd-btn sstssd-btn-sm" data-action="edit-recipe" data-id="${recipe.id}">✏️</button>

@@ -1623,6 +1623,17 @@ textarea.sstssd-input {
     color: #9ca3af;
 }
 
+.sstssd-ai-placeholder {
+    color: #9ca3af;
+    font-size: 13px;
+}
+
+.sstssd-ai-placeholder-steps {
+    color: #9ca3af;
+    font-size: 13px;
+    margin-top: 4px;
+}
+
 .sstssd-baking-actions {
     display: flex;
     gap: 6px;
