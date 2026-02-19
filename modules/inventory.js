@@ -113,11 +113,38 @@ export class InventoryModule {
         return false;
     }
     
+    // 퍼지 매칭으로 재료 찾기
+    findIngredientFuzzy(name) {
+        const ingredients = this.settings.inventory.items.filter(i => i.type === "ingredient");
+        
+        // 1순위: 완전 일치
+        let match = ingredients.find(i => i.name === name);
+        if (match) return match;
+        
+        // 2순위: 대소문자 무시 완전 일치
+        const nameLower = name.toLowerCase();
+        match = ingredients.find(i => i.name.toLowerCase() === nameLower);
+        if (match) return match;
+        
+        // 3순위: 포함 관계 매칭 (짧은 이름이 긴 이름에 포함)
+        // "딸기" ⊂ "설향딸기", "크림치즈" ⊂ "끼리크림치즈"
+        match = ingredients.find(i => i.name.includes(name) || name.includes(i.name));
+        if (match) return match;
+        
+        // 4순위: 공백/특수문자 제거 후 포함 관계
+        const nameNormalized = name.replace(/[\s\-_]/g, '').toLowerCase();
+        match = ingredients.find(i => {
+            const itemNormalized = i.name.replace(/[\s\-_]/g, '').toLowerCase();
+            return itemNormalized.includes(nameNormalized) || nameNormalized.includes(itemNormalized);
+        });
+        if (match) return match;
+        
+        return null;
+    }
+    
     // 재료 수량 변경 (베이킹 모듈에서 사용)
     changeItemQty(itemName, change, reason, source = "baking") {
-        const item = this.settings.inventory.items.find(i => 
-            i.name === itemName && i.type === "ingredient"
-        );
+        const item = this.findIngredientFuzzy(itemName);
         
         if (!item) {
             console.warn(`Inventory item not found: ${itemName}`);
@@ -125,6 +152,25 @@ export class InventoryModule {
         }
         
         item.qty += change;
+        
+        // Auto-cleanup for depleted ingredients from baking
+        if (item.qty <= 0 && source === "baking") {
+            // Record deletion in history
+            this.addHistory({
+                itemName: item.name,
+                change: change,
+                afterQty: 0,
+                reason: reason + " (사용 완료 - 자동 삭제)",
+                source: source
+            });
+            // Remove from items array
+            const idx = this.settings.inventory.items.indexOf(item);
+            if (idx !== -1) {
+                this.settings.inventory.items.splice(idx, 1);
+            }
+            this.saveCallback();
+            return true;
+        }
         
         this.addHistory({
             itemName: item.name,
