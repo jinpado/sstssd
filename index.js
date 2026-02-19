@@ -970,7 +970,7 @@ function initObserver() {
                                                 });
                                             } else {
                                                 // Fallback failed too
-                                                console.warn(`SSTSSD: Could not parse shopping item line: "${trimmed}"`);
+                                                console.warn(`SSTSSD: Could not parse shopping item line: "${trimmed}". Expected format: "🔸 아몬드 가루 — 200g — 4,500원"`);
                                             }
                                         }
                                     }
@@ -983,9 +983,19 @@ function initObserver() {
                                 // Find currently in-progress recipe to link, or fall back to most recent pending
                                 let linkedRecipe = null;
                                 if (bakingModule.settings.baking && bakingModule.settings.baking.recipes) {
-                                    // Prefer in_progress, then fall back to most recent pending
-                                    linkedRecipe = bakingModule.settings.baking.recipes.find(r => r.status === 'in_progress')
-                                        || bakingModule.settings.baking.recipes.filter(r => r.status === 'pending').pop();
+                                    // Prefer in_progress, then fall back to most recent pending (single pass)
+                                    let lastPending = null;
+                                    for (const recipe of bakingModule.settings.baking.recipes) {
+                                        if (recipe.status === 'in_progress') {
+                                            linkedRecipe = recipe;
+                                            break;
+                                        } else if (recipe.status === 'pending') {
+                                            lastPending = recipe;
+                                        }
+                                    }
+                                    if (!linkedRecipe && lastPending) {
+                                        linkedRecipe = lastPending;
+                                    }
                                 }
                                 
                                 // Add to shopping list using new structure
