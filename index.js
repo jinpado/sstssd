@@ -24,8 +24,8 @@ const SHOP_REGEX = /<SHOP>(.+?)\|(\d+)\|(.+?)\|(\d+)(?:\|(.+?))?\s*<\/SHOP>/g;
 // Example: <SHOP>[STORE]학교 앞 마트[/STORE][WHEN]작업 전[/WHEN][ITEMS]🔸 아몬드 가루 — 200g — 4,500원[/ITEMS][TOTAL]22,000원[/TOTAL]</SHOP>
 const SHOP_DETAILED_REGEX = /<SHOP>\s*\[STORE\]([\s\S]*?)\[\/STORE\]\s*\[WHEN\]([\s\S]*?)\[\/WHEN\]\s*\[ITEMS\]([\s\S]*?)\[\/ITEMS\]\s*\[TOTAL\]([\s\S]*?)\[\/TOTAL\]\s*<\/SHOP>/g;
 // BAKE_STATUS_REGEX: Enhanced baking progress tracking
-// Example: <BAKE>[MENU]딸기 타르트 ×6개[/MENU][START]2024-01-15 14:00[/START][END]2024-01-15 16:00[/END][STEPS]✅ ✅ 🔄 ⬜ ⬜[/STEPS][PCT]60[/PCT]</BAKE>
-const BAKE_STATUS_REGEX = /<BAKE>\s*\[MENU\]([\s\S]+?)\[\/MENU\]\s*\[START\]([\s\S]+?)\[\/START\]\s*\[END\]([\s\S]+?)\[\/END\]\s*\[STEPS\]([\s\S]+?)\[\/STEPS\]\s*\[PCT\](\d+)%?\[\/PCT\]\s*<\/BAKE>/g;
+// Example: <BAKE>[MENU]딸기 타르트 ×6개[/MENU][START]2024-01-15 14:00[/START][END]2024-01-15 16:00[/END][STEPS]✅ ✅ 🔄 ⬜ ⬜[/STEPS][PCT]60%[/PCT]</BAKE>
+const BAKE_STATUS_REGEX = /<BAKE>\s*\[MENU\]([\s\S]+?)\[\/MENU\]\s*\[START\]([\s\S]+?)\[\/START\]\s*\[END\]([\s\S]+?)\[\/END\]\s*\[STEPS\]([\s\S]+?)\[\/STEPS\]\s*\[PCT\]([\s\S]+?)\[\/PCT\]\s*<\/BAKE>/g;
 
 // Extension state
 let panelElement = null;
@@ -838,7 +838,8 @@ function initObserver() {
                             const start = match[2].trim();
                             const end = match[3].trim();
                             const stepsStr = match[4].trim();
-                            const pct = parseInt(match[5]);
+                            const pctText = match[5].trim();
+                            const pct = parseInt(pctText.replace(/[^0-9]/g, '')) || 0;
                             
                             if (bakingModule) {
                                 console.log(`SSTSSD: Auto-detected baking status: ${menu} ${pct}%`);
