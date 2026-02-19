@@ -181,6 +181,9 @@ export class InventoryModule {
     
     // 재료명 기반 카테고리 추측
     guessCategory(ingredientName) {
+        // 입력값 검증
+        if (!ingredientName || typeof ingredientName !== 'string') return '기타';
+        
         // 1. COMMON_INGREDIENTS에서 찾기
         const preset = InventoryModule.COMMON_INGREDIENTS.find(ing => {
             if (ing.name === ingredientName) return true;
@@ -708,7 +711,7 @@ export class InventoryModule {
                     const parsedQty = parseFloat(qty);
                     if (!isNaN(parsedQty) && parsedQty > 0) {
                         // 가격 입력 프롬프트 (수량 입력 후)
-                        const adjustedPrice = Math.round(defaultPrice * (parsedQty / defaultQty));
+                        const adjustedPrice = (defaultQty > 0) ? Math.round(defaultPrice * (parsedQty / defaultQty)) : defaultPrice;
                         const priceInput = prompt(`${name}의 가격을 입력하세요 (기본값: ${adjustedPrice}원)\n가격을 입력하면 잔고에서 차감됩니다.`, adjustedPrice);
                         if (priceInput === null) return; // 취소 시 중단
                         const price = parseFloat(priceInput) || 0;
