@@ -500,8 +500,9 @@ export class BakingModule {
                 this.settings.baking.bakingHistory = this.settings.baking.bakingHistory.slice(0, 30);
             }
             
-            // Reset recipe to pending so it can be reused
-            recipe.status = 'pending';
+            // Mark recipe as completed (removes from recipe list)
+            recipe.status = 'completed';
+            recipe.completedAt = this.formatDate(this.getRpDate());
             recipe.currentStep = null;
             recipe.multiplier = null;
             recipe.startedAt = null;
@@ -674,7 +675,8 @@ export class BakingModule {
                 this.completeStep(recipe.id, lastStepIndex);
             } else {
                 // No steps defined, manually complete
-                recipe.status = 'pending';
+                recipe.status = 'completed';
+                recipe.completedAt = this.formatDate(this.getRpDate());
                 this.saveCallback();
             }
         } else {
