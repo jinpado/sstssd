@@ -25,7 +25,7 @@ const SHOP_REGEX = /<SHOP>(.+?)\|(\d+)\|(.+?)\|(\d+)(?:\|(.+?))?\s*<\/SHOP>/g;
 const SHOP_DETAILED_REGEX = /<SHOP>\s*\[STORE\]([\s\S]*?)\[\/STORE\]\s*\[WHEN\]([\s\S]*?)\[\/WHEN\]\s*\[ITEMS\]([\s\S]*?)\[\/ITEMS\]\s*\[TOTAL\]([\s\S]*?)\[\/TOTAL\]\s*<\/SHOP>/g;
 // BAKE_STATUS_REGEX: Enhanced baking progress tracking
 // Example: <BAKE>[MENU]딸기 타르트 ×6개[/MENU][START]2024-01-15 14:00[/START][END]2024-01-15 16:00[/END][STEPS]✅ ✅ 🔄 ⬜ ⬜[/STEPS][PCT]60[/PCT]</BAKE>
-const BAKE_STATUS_REGEX = /<BAKE>\s*\[MENU\](.+?)\[\/MENU\]\s*\[START\](.+?)\[\/START\]\s*\[END\](.+?)\[\/END\]\s*\[STEPS\](.+?)\[\/STEPS\]\s*\[PCT\](\d+)\[\/PCT\]\s*<\/BAKE>/g;
+const BAKE_STATUS_REGEX = /<BAKE>\s*\[MENU\]([\s\S]+?)\[\/MENU\]\s*\[START\]([\s\S]+?)\[\/START\]\s*\[END\]([\s\S]+?)\[\/END\]\s*\[STEPS\]([\s\S]+?)\[\/STEPS\]\s*\[PCT\](\d+)%?\[\/PCT\]\s*<\/BAKE>/g;
 
 // Extension state
 let panelElement = null;
