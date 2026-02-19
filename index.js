@@ -839,7 +839,7 @@ function initObserver() {
                             const end = match[3].trim();
                             const stepsStr = match[4].trim();
                             const pctText = match[5].trim();
-                            let pct = parseInt(pctText.replace(/[^0-9]/g, ''));
+                            let pct = parseInt(pctText.replace(/[^0-9]/g, ''), 10);
                             
                             // Handle NaN case (no digits found)
                             if (isNaN(pct)) {
@@ -847,7 +847,7 @@ function initObserver() {
                                 pct = 0;
                             }
                             
-                            // Validate PCT is in reasonable range
+                            // Validate PCT is in reasonable range (0-100)
                             const validatedPct = Math.max(0, Math.min(100, pct));
                             if (pct !== validatedPct) {
                                 console.warn(`SSTSSD: PCT value ${pct} (from "${pctText}") is out of range. Clamped to ${validatedPct}.`);
