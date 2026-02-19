@@ -495,9 +495,41 @@ export class BakingModule {
             return;
         }
         
-        // Update steps status from BAKE tag
-        if (bakeTagData.steps && recipe.steps) {
-            const stepStatuses = bakeTagData.steps;  // Array like ['✅', '✅', '🔄', '⬜', '⬜']
+        // Handle new detailed steps format from AI
+        if (bakeTagData.parsedSteps && bakeTagData.parsedSteps.length > 0) {
+            // If recipe has no steps yet, create them from AI data
+            if (!recipe.steps || recipe.steps.length === 0) {
+                recipe.steps = bakeTagData.parsedSteps.map(ps => ({
+                    name: ps.name || '단계',
+                    estimatedTime: ps.estimatedTime || '',
+                    status: ps.status || 'pending'
+                }));
+                console.log('SSTSSD: Recipe steps initialized from BAKE tag:', recipe.steps);
+            } else {
+                // Update existing steps status
+                recipe.steps.forEach((step, idx) => {
+                    if (idx < bakeTagData.parsedSteps.length) {
+                        const parsedStep = bakeTagData.parsedSteps[idx];
+                        step.status = parsedStep.status || 'pending';
+                        
+                        // Update step name and time if they were empty
+                        if (!step.name && parsedStep.name) {
+                            step.name = parsedStep.name;
+                        }
+                        if (!step.estimatedTime && parsedStep.estimatedTime) {
+                            step.estimatedTime = parsedStep.estimatedTime;
+                        }
+                        
+                        // Track current step
+                        if (step.status === 'in_progress') {
+                            recipe.currentStep = idx;
+                        }
+                    }
+                });
+            }
+        } else if (bakeTagData.steps && recipe.steps) {
+            // Fallback: old format with just icon array ['✅', '✅', '🔄', '⬜', '⬜']
+            const stepStatuses = bakeTagData.steps;
             
             recipe.steps.forEach((step, idx) => {
                 if (idx < stepStatuses.length) {
@@ -521,7 +553,7 @@ export class BakingModule {
             console.log('SSTSSD: Baking complete detected, finalizing:', recipe.name);
             
             // Mark all steps as completed
-            if (recipe.steps) {
+            if (recipe.steps && recipe.steps.length > 0) {
                 recipe.steps.forEach(step => {
                     step.status = 'completed';
                 });
