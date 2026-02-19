@@ -293,6 +293,11 @@ export class BakingModule {
             return { success: false, error: "레시피를 찾을 수 없습니다" };
         }
         
+        // Check if recipe has steps
+        if (!recipe.steps || recipe.steps.length === 0) {
+            return { success: false, error: "레시피에 단계가 없습니다. 레시피를 편집하여 단계를 추가해주세요." };
+        }
+        
         // Check if already in progress
         if (recipe.status === 'in_progress') {
             return { success: false, error: "이미 진행 중인 레시피입니다" };
@@ -492,14 +497,18 @@ export class BakingModule {
     updateFromBakeTag(bakeTagData) {
         if (!bakeTagData || !bakeTagData.menu) return;
         
+        // Extract recipe name from menu (e.g., "딸기 타르트 ×6개" → "딸기 타르트")
+        const menuText = bakeTagData.menu.trim();
+        const recipeName = menuText.replace(/\s*×.*$/, '').trim();
+        
         // Find matching recipe by name
         const recipe = this.settings.baking.recipes.find(r => 
             r.status === 'in_progress' && 
-            (r.name === bakeTagData.menu || bakeTagData.menu.includes(r.name))
+            (r.name === recipeName || recipeName.includes(r.name) || r.name.includes(recipeName))
         );
         
         if (!recipe) {
-            console.log('SSTSSD: No matching in-progress recipe for BAKE tag:', bakeTagData.menu);
+            console.log('SSTSSD: No matching in-progress recipe for BAKE tag:', recipeName);
             return;
         }
         
@@ -526,6 +535,12 @@ export class BakingModule {
         
         // Check if baking is complete (PCT = 100%)
         if (bakeTagData.pct >= 100) {
+            // Skip if already completed
+            if (recipe.status === 'completed') {
+                console.log('SSTSSD: Recipe already completed, skipping:', recipe.name);
+                return;
+            }
+            
             console.log('SSTSSD: Baking complete detected, finalizing:', recipe.name);
             
             // Mark all steps as completed
