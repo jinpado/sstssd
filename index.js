@@ -625,7 +625,7 @@ function initModules() {
         }
         
         // Initialize Baking module with chat-specific data, global settings getter, inventory and instagram modules
-        bakingModule = new BakingModule(chatData, saveSettings, getGlobalSettings, getRpDate, inventoryModule, instagramModule);
+        bakingModule = new BakingModule(chatData, saveSettings, getGlobalSettings, getRpDate, inventoryModule, instagramModule, balanceModule, getContext);
         const bakingContainer = document.querySelector('.sstssd-module[data-module="baking"]');
         if (bakingContainer) {
             bakingModule.render(bakingContainer);
