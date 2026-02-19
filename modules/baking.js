@@ -178,41 +178,33 @@ export class BakingModule {
     }
     
     // ===== 베이킹 실행 =====
-    // 베이킹 수행
+    // 베이킹 수행 (내부 완료 전용)
     performBaking(recipeId, multiplier = 1) {
         const recipe = this.settings.baking.recipes.find(r => r.id === recipeId);
         if (!recipe) {
             return { success: false, error: "레시피를 찾을 수 없습니다" };
         }
         
-        // 재료 확인
-        if (this.inventoryModule) {
+        // 재료 확인 & 차감 (보유 시에만 - RP에서 이미 구매했을 수 있음)
+        if (this.inventoryModule && recipe.ingredients && recipe.ingredients.length > 0) {
             for (const ingredient of recipe.ingredients) {
                 const requiredQty = ingredient.qty * multiplier;
                 const item = this.inventoryModule.settings.inventory.items.find(i => 
                     i.name === ingredient.name && i.type === "ingredient"
                 );
                 
-                if (!item || item.qty < requiredQty) {
-                    return { 
-                        success: false, 
-                        error: `재료 부족: ${ingredient.name} (필요: ${requiredQty}${ingredient.unit}, 보유: ${item ? item.qty : 0}${ingredient.unit})` 
-                    };
+                // 보유량이 충분하면 차감, 아니면 스킵 (이미 RP에서 구매했을 수 있음)
+                if (item && item.qty >= requiredQty) {
+                    this.inventoryModule.changeItemQty(
+                        ingredient.name,
+                        -requiredQty,
+                        `${recipe.name} ×${recipe.yieldQty * multiplier} 제작`,
+                        "baking"
+                    );
                 }
             }
             
-            // 재료 차감
-            for (const ingredient of recipe.ingredients) {
-                const requiredQty = ingredient.qty * multiplier;
-                this.inventoryModule.changeItemQty(
-                    ingredient.name,
-                    -requiredQty,
-                    `${recipe.name} ×${recipe.yieldQty * multiplier} 제작`,
-                    "baking"
-                );
-            }
-            
-            // 완제품 추가
+            // 완제품은 항상 추가
             this.inventoryModule.addProduct({
                 name: recipe.name,
                 qty: recipe.yieldQty * multiplier,
@@ -253,30 +245,15 @@ export class BakingModule {
             return { success: false, error: "이미 진행 중인 레시피입니다" };
         }
         
-        // 재료 확인 (don't deduct yet)
-        if (this.inventoryModule) {
-            for (const ingredient of recipe.ingredients) {
-                const requiredQty = ingredient.qty * multiplier;
-                const item = this.inventoryModule.settings.inventory.items.find(i => 
-                    i.name === ingredient.name && i.type === "ingredient"
-                );
-                
-                if (!item || item.qty < requiredQty) {
-                    return { 
-                        success: false, 
-                        error: `재료 부족: ${ingredient.name} (필요: ${requiredQty}${ingredient.unit}, 보유: ${item ? item.qty : 0}${ingredient.unit})` 
-                    };
-                }
-            }
-        }
+        // ❌ Removed ingredient check — AI will handle ingredient availability
         
         // Initialize step tracking
         recipe.status = 'in_progress';
         recipe.currentStep = 0;
         recipe.multiplier = multiplier;
         
-        // Initialize steps with status
-        if (recipe.steps) {
+        // Initialize steps with status if they exist
+        if (recipe.steps && recipe.steps.length > 0) {
             recipe.steps.forEach(step => {
                 step.status = 'pending';
             });
@@ -293,32 +270,13 @@ export class BakingModule {
             return { success: false, error: "레시피를 찾을 수 없습니다" };
         }
         
-        // Check if recipe has steps
-        if (!recipe.steps || recipe.steps.length === 0) {
-            return { success: false, error: "레시피에 단계가 없습니다. 레시피를 편집하여 단계를 추가해주세요." };
-        }
-        
         // Check if already in progress
         if (recipe.status === 'in_progress') {
             return { success: false, error: "이미 진행 중인 레시피입니다" };
         }
         
-        // 재료 확인
-        if (this.inventoryModule) {
-            for (const ingredient of recipe.ingredients) {
-                const requiredQty = ingredient.qty * multiplier;
-                const item = this.inventoryModule.settings.inventory.items.find(i => 
-                    i.name === ingredient.name && i.type === "ingredient"
-                );
-                
-                if (!item || item.qty < requiredQty) {
-                    return { 
-                        success: false, 
-                        error: `재료 부족: ${ingredient.name} (필요: ${requiredQty}${ingredient.unit}, 보유: ${item ? item.qty : 0}${ingredient.unit})` 
-                    };
-                }
-            }
-        }
+        // ❌ Removed ingredient check — AI will inform about missing ingredients via <SHOP> tags
+        // ❌ Removed steps required check — AI will generate recipe-specific steps
         
         // Set recipe to in_progress
         recipe.status = 'in_progress';
@@ -326,8 +284,8 @@ export class BakingModule {
         recipe.multiplier = multiplier;
         recipe.startedAt = this.formatDate(this.getRpDate());
         
-        // Initialize steps with status
-        if (recipe.steps) {
+        // Initialize steps with status if they exist
+        if (recipe.steps && recipe.steps.length > 0) {
             recipe.steps.forEach(step => {
                 step.status = 'pending';
             });
@@ -348,15 +306,18 @@ export class BakingModule {
                     `/setvar key=bake_active "true"`
                 );
                 // Set bake_data with detailed info
-                const stepsInfo = recipe.steps ? recipe.steps.map(s => s.name).join(' | ') : '';
                 await context.executeSlashCommandsWithOptions(
-                    `/setvar key=bake_data "menu:${recipe.name}|qty:${recipe.yieldQty * multiplier}|unit:${recipe.yieldUnit}|steps:${stepsInfo}"`
+                    `/setvar key=bake_data "menu:${recipe.name}|qty:${recipe.yieldQty * multiplier}|unit:${recipe.yieldUnit}"`
                 );
                 console.log('SSTSSD: QR variables set for baking:', recipe.name);
             }
         } catch (error) {
             console.warn('SSTSSD: Failed to execute QR commands (will continue without QR integration)', error);
         }
+        
+        // Re-render sidebar UI
+        const container = document.querySelector('.sstssd-module[data-module="baking"]');
+        if (container) this.render(container);
         
         return { success: true, recipe };
     }
@@ -412,22 +373,31 @@ export class BakingModule {
         const isLastStep = stepIndex === recipe.steps.length - 1;
         
         if (isLastStep) {
-            // Complete baking: deduct ingredients and add product
+            // Complete baking: deduct ingredients (if available) and add product
             const multiplier = recipe.multiplier || 1;
             
             if (this.inventoryModule) {
-                // 재료 차감
-                for (const ingredient of recipe.ingredients) {
-                    const requiredQty = ingredient.qty * multiplier;
-                    this.inventoryModule.changeItemQty(
-                        ingredient.name,
-                        -requiredQty,
-                        `${recipe.name} ×${recipe.yieldQty * multiplier} 제작`,
-                        "baking"
-                    );
+                // 재료 차감 (보유 시에만 - RP에서 이미 구매했을 수 있음)
+                if (recipe.ingredients && recipe.ingredients.length > 0) {
+                    for (const ingredient of recipe.ingredients) {
+                        const requiredQty = ingredient.qty * multiplier;
+                        const item = this.inventoryModule.settings.inventory.items.find(i => 
+                            i.name === ingredient.name && i.type === "ingredient"
+                        );
+                        
+                        // 보유량이 충분하면 차감, 아니면 스킵
+                        if (item && item.qty >= requiredQty) {
+                            this.inventoryModule.changeItemQty(
+                                ingredient.name,
+                                -requiredQty,
+                                `${recipe.name} ×${recipe.yieldQty * multiplier} 제작`,
+                                "baking"
+                            );
+                        }
+                    }
                 }
                 
-                // 완제품 추가
+                // 완제품은 항상 추가
                 this.inventoryModule.addProduct({
                     name: recipe.name,
                     qty: recipe.yieldQty * multiplier,
@@ -942,6 +912,9 @@ export class BakingModule {
             `;
         } else {
             // Render normal UI
+            const hasIngredients = recipe.ingredients && recipe.ingredients.length > 0;
+            const hasSteps = recipe.steps && recipe.steps.length > 0;
+            
             return `
                 <div class="sstssd-baking-item" data-id="${recipe.id}">
                     <div class="sstssd-baking-header">
@@ -950,10 +923,14 @@ export class BakingModule {
                         ${recipe.deadline ? `<span class="sstssd-baking-deadline">📅 ${recipe.deadline}</span>` : ''}
                     </div>
                     <div class="sstssd-baking-ingredients">
-                        ${recipe.ingredients.map(ing => `
-                            <span class="sstssd-ingredient-tag">${ing.name} ${ing.qty}${ing.unit}</span>
-                        `).join('')}
+                        ${hasIngredients ? 
+                            recipe.ingredients.map(ing => `
+                                <span class="sstssd-ingredient-tag">${ing.name} ${ing.qty}${ing.unit}</span>
+                            `).join('') :
+                            '<span style="color: #9ca3af; font-size: 13px;">📋 재료: 시작 시 AI가 자동 계산</span>'
+                        }
                     </div>
+                    ${!hasSteps ? '<div style="color: #9ca3af; font-size: 13px; margin-top: 4px;">📝 단계: 시작 시 AI가 자동 계산</div>' : ''}
                     <div class="sstssd-baking-actions">
                         <button class="sstssd-btn sstssd-btn-sm sstssd-btn-success sstssd-btn-start-baking" data-action="start-step-baking" data-id="${recipe.id}">▶ 시작</button>
                         <button class="sstssd-btn sstssd-btn-sm" data-action="edit-recipe" data-id="${recipe.id}">✏️</button>
