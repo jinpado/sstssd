@@ -795,22 +795,27 @@ export class BalanceModule {
     }
 
     renderRecurringIncome(income) {
+        const isSNS = income.source === 'SNS';
         const amountText = income.type === "fixed" ? 
             this.formatCurrency(income.fixedAmount) : 
             `${this.formatCurrency(income.minAmount)}~${this.formatCurrency(income.maxAmount)} (랜덤)`;
         
         return `
-            <div class="sstssd-recurring-item ${income.enabled ? '' : 'sstssd-recurring-disabled'}">
+            <div class="sstssd-recurring-item ${income.enabled ? '' : 'sstssd-recurring-disabled'} ${isSNS ? 'sstssd-recurring-locked' : ''}">
                 <div class="sstssd-recurring-header">
-                    <span>${this.escapeHtml(income.name)}</span>
+                    <span>${this.escapeHtml(income.name || income.source)} ${isSNS ? '🔒' : ''}</span>
                     <span class="sstssd-recurring-day">매월 ${income.dayOfMonth}일</span>
                 </div>
-                <div class="sstssd-recurring-amount">└ ${amountText}</div>
+                <div class="sstssd-recurring-amount">└ ${amountText}${isSNS ? ' <span class="sstssd-auto-sync-label">(자동 연동)</span>' : ''}</div>
                 <div class="sstssd-recurring-actions">
-                    <button class="sstssd-btn sstssd-btn-xs" data-action="toggle-recurring-income" data-id="${income.id}">
-                        ${income.enabled ? '비활성화' : '활성화'}
-                    </button>
-                    <button class="sstssd-btn sstssd-btn-xs sstssd-btn-delete" data-action="delete-recurring-income" data-id="${income.id}">삭제</button>
+                    ${!isSNS ? `
+                        <button class="sstssd-btn sstssd-btn-xs" data-action="toggle-recurring-income" data-id="${income.id}">
+                            ${income.enabled ? '비활성화' : '활성화'}
+                        </button>
+                        <button class="sstssd-btn sstssd-btn-xs sstssd-btn-delete" data-action="delete-recurring-income" data-id="${income.id}">삭제</button>
+                    ` : `
+                        <span class="sstssd-locked-message">인스타그램 연동 항목</span>
+                    `}
                 </div>
             </div>
         `;

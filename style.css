@@ -1015,6 +1015,23 @@ textarea.sstssd-input {
     border-left: 2px solid #a78bfa;
 }
 
+.sstssd-recurring-locked {
+    border-left-color: #fbbf24;
+    background: #2a2614;
+}
+
+.sstssd-auto-sync-label {
+    color: #fbbf24;
+    font-size: 11px;
+    font-style: italic;
+}
+
+.sstssd-locked-message {
+    color: #9ca3af;
+    font-size: 11px;
+    font-style: italic;
+}
+
 .sstssd-recurring-disabled {
     opacity: 0.5;
     border-left-color: #6b7280;

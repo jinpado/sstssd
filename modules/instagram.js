@@ -66,6 +66,9 @@ export class InstagramModule {
         
         // Process follower decay if no posts for 7+ days
         this.processFollowerDecay();
+        
+        // Initialize SNS income on first load
+        this.updateSNSIncome();
     }
     
     // Get maximum ID from existing data
@@ -235,6 +238,9 @@ export class InstagramModule {
             this.settings.instagram.followers = Math.max(0, this.settings.instagram.followers - decay);
             this.settings.instagram.followerChange -= decay;
             this.saveCallback();
+            
+            // Update SNS income after follower decay
+            this.updateSNSIncome();
         }
     }
     
@@ -258,7 +264,14 @@ export class InstagramModule {
         const balanceData = this.balanceModule.settings.balance;
         if (balanceData) {
             let snsIncome = balanceData.recurringIncome.find(i => i.source === 'SNS');
+            let previousRange = null;
+            
             if (snsIncome) {
+                // Check if tier changed
+                previousRange = ranges.find(r => 
+                    r.min === snsIncome.minAmount && r.max === snsIncome.maxAmount
+                );
+                
                 snsIncome.minAmount = incomeRange.min;
                 snsIncome.maxAmount = incomeRange.max;
             } else {
@@ -272,7 +285,32 @@ export class InstagramModule {
                     createdAt: this.formatDate(this.getRpDate())
                 });
             }
+            
+            // Notify if tier changed
+            if (previousRange && (previousRange.min !== incomeRange.min || previousRange.max !== incomeRange.max)) {
+                this.showTierChangeNotification(previousRange, incomeRange, followers);
+            }
+            
             this.saveCallback();
+        }
+    }
+    
+    // Show tier change notification
+    showTierChangeNotification(previousRange, newRange, currentFollowers) {
+        const formatCurrency = (amount) => {
+            return `${(amount / 10000).toFixed(0)}만원`;
+        };
+        
+        const message = `📊 팔로워 구간 변경!\n` +
+            `현재 팔로워: ${currentFollowers.toLocaleString()}명\n` +
+            `이전 수익: ${formatCurrency(previousRange.min)}~${formatCurrency(previousRange.max)}/월\n` +
+            `새로운 수익: ${formatCurrency(newRange.min)}~${formatCurrency(newRange.max)}/월`;
+        
+        // Use toastr if available, otherwise console
+        if (typeof toastr !== 'undefined') {
+            toastr.success(message, '인스타그램 수익 변경', { timeOut: 5000 });
+        } else {
+            console.log(message);
         }
     }
     
