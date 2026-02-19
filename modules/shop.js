@@ -870,6 +870,10 @@ export class ShopModule {
                 if (result.success) {
                     this.showToast('✅ 급여 지급 완료');
                     this.render(container);
+                    const balanceContainer = document.querySelector('.sstssd-module[data-module="balance"]');
+                    if (balanceContainer && this.balanceModule) {
+                        this.balanceModule.render(balanceContainer);
+                    }
                 } else {
                     alert(result.error);
                 }

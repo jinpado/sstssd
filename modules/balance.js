@@ -110,7 +110,8 @@ export class BalanceModule {
             description: `저축 (${goal.name})`,
             amount: amount,
             memo: `${goal.name}에 저축`,
-            isRecurring: false
+            isRecurring: false,
+            skipBalanceUpdate: true
         });
 
         this.saveCallback();
@@ -139,7 +140,8 @@ export class BalanceModule {
             description: `저축 인출 (${goal.name})`,
             amount: amount,
             memo: `${goal.name}에서 인출`,
-            isRecurring: false
+            isRecurring: false,
+            skipBalanceUpdate: true
         });
 
         this.saveCallback();
@@ -290,18 +292,20 @@ export class BalanceModule {
         
         this.settings.balance.transactions.unshift(newTransaction);  // Add to beginning
         
-        // Update balance based on transaction
-        if (data.source === "shop" && this.settings.balance.shopMode.enabled) {
-            if (data.type === "income") {
-                this.settings.balance.shopMode.operatingFund += data.amount;
+        // Update balance based on transaction (skip if caller already updated balance directly)
+        if (!data.skipBalanceUpdate) {
+            if (data.source === "shop" && this.settings.balance.shopMode.enabled) {
+                if (data.type === "income") {
+                    this.settings.balance.shopMode.operatingFund += data.amount;
+                } else {
+                    this.settings.balance.shopMode.operatingFund -= data.amount;
+                }
             } else {
-                this.settings.balance.shopMode.operatingFund -= data.amount;
-            }
-        } else {
-            if (data.type === "income") {
-                this.settings.balance.living += data.amount;
-            } else {
-                this.settings.balance.living -= data.amount;
+                if (data.type === "income") {
+                    this.settings.balance.living += data.amount;
+                } else {
+                    this.settings.balance.living -= data.amount;
+                }
             }
         }
         
@@ -315,7 +319,7 @@ export class BalanceModule {
             const transaction = this.settings.balance.transactions[index];
             
             // Reverse the transaction effect
-            if (transaction.source === "shop" && this.settings.balance.shopMode.enabled) {
+            if (transaction.source === "shop") {
                 if (transaction.type === "income") {
                     this.settings.balance.shopMode.operatingFund -= transaction.amount;
                 } else {
@@ -521,7 +525,8 @@ export class BalanceModule {
             category: "가게이체",
             description: "개인 → 가게 이체",
             amount: amount,
-            memo: "운영비 충전"
+            memo: "운영비 충전",
+            skipBalanceUpdate: true
         });
         
         this.saveCallback();
@@ -550,7 +555,8 @@ export class BalanceModule {
             category: "가게인출",
             description: "가게 → 개인 이체",
             amount: amount,
-            memo: toSavings ? "저축으로 이체" : "생활비로 이체"
+            memo: toSavings ? "저축으로 이체" : "생활비로 이체",
+            skipBalanceUpdate: true
         });
         
         this.saveCallback();

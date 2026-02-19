@@ -928,7 +928,8 @@ export class BakingModule {
                 amount: totalPrice,
                 date: this.formatDate(this.getRpDate()),
                 source: shopEnabled ? "shop" : "personal",
-                memo: "구매 리스트 완료"
+                memo: "구매 리스트 완료",
+                createdAt: this.formatDate(this.getRpDate())
             });
         }
         
