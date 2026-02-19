@@ -44,6 +44,7 @@ export class InstagramModule {
                 lastPostDate: null,
                 posts: [],
                 dms: [],
+                orders: [],  // Order pipeline
                 incomeRanges: [
                     { maxFollowers: 5000, min: 1000000, max: 3000000 },
                     { maxFollowers: 15000, min: 3000000, max: 8000000 },
@@ -53,9 +54,27 @@ export class InstagramModule {
                 subAccordionState: {
                     accountStats: false,
                     posts: false,
-                    dms: false
+                    dms: false,
+                    orders: false
                 }
             };
+        }
+        
+        // Initialize orders array if not exists
+        if (!this.settings.instagram.orders) {
+            this.settings.instagram.orders = [];
+        }
+        
+        // Initialize orders sub-accordion state if not exists
+        if (!this.settings.instagram.subAccordionState) {
+            this.settings.instagram.subAccordionState = {
+                accountStats: false,
+                posts: false,
+                dms: false,
+                orders: false
+            };
+        } else if (typeof this.settings.instagram.subAccordionState.orders === 'undefined') {
+            this.settings.instagram.subAccordionState.orders = false;
         }
         
         // Initialize ID counter from existing data
@@ -78,7 +97,8 @@ export class InstagramModule {
         if (this.settings.instagram) {
             const allIds = [
                 ...this.settings.instagram.posts.map(p => p.id || 0),
-                ...this.settings.instagram.dms.map(d => d.id || 0)
+                ...this.settings.instagram.dms.map(d => d.id || 0),
+                ...(this.settings.instagram.orders || []).map(o => o.id || 0)
             ];
             
             if (allIds.length > 0) {
@@ -390,6 +410,52 @@ export class InstagramModule {
         return false;
     }
     
+    // 주문 완료
+    completeOrder(id, container) {
+        const order = this.settings.instagram.orders.find(o => o.id === id);
+        if (!order) return;
+        
+        if (confirm(`💰 ${order.customerName}님 주문을 완료하시겠습니까?\n금액: ${order.estimatedPrice.toLocaleString('ko-KR')}원`)) {
+            // Add income transaction to balance module
+            if (this.balanceModule) {
+                const shopEnabled = this.balanceModule?.settings?.balance?.shopMode?.enabled || false;
+                
+                this.balanceModule.addTransaction({
+                    type: "income",
+                    source: shopEnabled ? "shop" : "personal",
+                    category: "주문 수입",
+                    description: `인스타 주문: ${order.customerName} - ${order.description}`,
+                    amount: order.estimatedPrice,
+                    memo: "DM 주문 납품 완료"
+                });
+                
+                // Re-render balance module
+                const balanceContainer = document.querySelector('.sstssd-module[data-module="balance"]');
+                if (balanceContainer) {
+                    this.balanceModule.render(balanceContainer);
+                }
+                
+                if (typeof window.sstsdUpdateSummary === 'function') {
+                    window.sstsdUpdateSummary();
+                }
+            }
+            
+            // Mark order as completed
+            order.status = 'completed';
+            this.saveCallback();
+            this.render(container);
+        }
+    }
+    
+    // 주문 취소
+    cancelOrder(id) {
+        const order = this.settings.instagram.orders.find(o => o.id === id);
+        if (order) {
+            order.status = 'cancelled';
+            this.saveCallback();
+        }
+    }
+    
     // 만료된 DM 처리 (7일 이상 미응답)
     processExpiredDMs() {
         const today = this.getRpDate();
@@ -459,6 +525,7 @@ export class InstagramModule {
                 ${this.renderAccountStats()}
                 ${this.renderPosts()}
                 ${this.renderDMs()}
+                ${this.renderOrders()}
             </div>
         `;
         
@@ -605,6 +672,9 @@ export class InstagramModule {
             expired: '만료됨'
         };
         
+        // Find linked order
+        const order = this.settings.instagram.orders.find(o => o.dmId === dm.id);
+        
         return `
             <div class="sstssd-insta-dm sstssd-dm-${dm.status}">
                 <div class="sstssd-dm-header">
@@ -613,6 +683,21 @@ export class InstagramModule {
                     <span class="sstssd-dm-date">(${dm.date})</span>
                 </div>
                 <div class="sstssd-dm-message">"${this.escapeHtml(dm.message)}"</div>
+                ${order ? `
+                    <div class="sstssd-dm-order">
+                        📋 주문: ${this.escapeHtml(order.description)} | 💰 ${order.estimatedPrice.toLocaleString('ko-KR')}원 | 📅 납품: ${order.deliveryDate}
+                    </div>
+                    ${order.status === 'pending' ? `
+                        <div class="sstssd-dm-actions">
+                            <button class="sstssd-btn sstssd-btn-sm sstssd-btn-success" data-action="complete-order" data-id="${order.id}">납품 완료</button>
+                            <button class="sstssd-btn sstssd-btn-sm sstssd-btn-danger" data-action="cancel-order" data-id="${order.id}">취소</button>
+                        </div>
+                    ` : order.status === 'completed' ? `
+                        <div class="sstssd-order-status" style="color: #10b981;">✓ 납품 완료</div>
+                    ` : order.status === 'cancelled' ? `
+                        <div class="sstssd-order-status" style="color: #ef4444;">✗ 취소됨</div>
+                    ` : ''}
+                ` : ''}
                 ${dm.memo ? `<div class="sstssd-dm-memo">메모: ${this.escapeHtml(dm.memo)}</div>` : ''}
                 ${dm.status === 'pending' ? `
                     <div class="sstssd-dm-actions">
@@ -623,6 +708,70 @@ export class InstagramModule {
                 ${dm.status === 'expired' || dm.status === 'declined' ? `
                     <button class="sstssd-btn sstssd-btn-sm" data-action="delete-dm" data-id="${dm.id}">삭제</button>
                 ` : ''}
+            </div>
+        `;
+    }
+    
+    // 주문 현황 섹션
+    renderOrders() {
+        const instaData = this.settings.instagram;
+        const isOpen = instaData.subAccordionState?.orders || false;
+        const orders = instaData.orders || [];
+        const pendingOrders = orders.filter(o => o.status === 'pending');
+        const completedOrders = orders.filter(o => o.status === 'completed').slice(0, 5);
+        const totalPendingValue = pendingOrders.reduce((sum, o) => sum + o.estimatedPrice, 0);
+        
+        return `
+            <div class="sstssd-sub-section">
+                <div class="sstssd-sub-header" data-sub="orders">
+                    <span>📋 주문 현황</span>
+                    ${pendingOrders.length > 0 ? `<span class="sstssd-badge sstssd-badge-warning">${pendingOrders.length}</span>` : ''}
+                    <button class="sstssd-sub-toggle">${isOpen ? '▲' : '▼'}</button>
+                </div>
+                <div class="sstssd-sub-content ${isOpen ? 'sstssd-sub-open' : ''}">
+                    ${totalPendingValue > 0 ? `
+                        <div class="sstssd-order-summary">
+                            💰 대기 중 주문 총액: ${totalPendingValue.toLocaleString('ko-KR')}원
+                        </div>
+                    ` : ''}
+                    ${pendingOrders.length > 0 ? `
+                        <div style="margin-bottom: 16px;">
+                            <div style="font-weight: bold; margin-bottom: 8px; color: #fb923c;">대기 중 주문</div>
+                            ${pendingOrders.map(order => this.renderOrderItem(order)).join('')}
+                        </div>
+                    ` : ''}
+                    ${completedOrders.length > 0 ? `
+                        <div>
+                            <div style="font-weight: bold; margin-bottom: 8px; color: #10b981;">완료된 주문 (최근 5개)</div>
+                            ${completedOrders.map(order => this.renderOrderItem(order)).join('')}
+                        </div>
+                    ` : ''}
+                    ${orders.length === 0 ? '<div class="sstssd-empty">주문이 없습니다</div>' : ''}
+                </div>
+            </div>
+        `;
+    }
+    
+    // 주문 항목
+    renderOrderItem(order) {
+        const currentDate = this.getRpDate();
+        const deliveryDate = new Date(order.deliveryDate);
+        const daysUntil = Math.ceil((deliveryDate - currentDate) / InstagramModule.DAYS_TO_MS);
+        
+        return `
+            <div class="sstssd-order-item">
+                <div class="sstssd-order-header">
+                    <span class="sstssd-order-customer">👤 ${this.escapeHtml(order.customerName)}</span>
+                    <span class="sstssd-order-price">💰 ${order.estimatedPrice.toLocaleString('ko-KR')}원</span>
+                </div>
+                <div class="sstssd-order-description">📋 ${this.escapeHtml(order.description)}</div>
+                <div class="sstssd-order-delivery">
+                    📅 납품: ${order.deliveryDate}
+                    ${order.status === 'pending' ? `<span style="color: ${daysUntil <= 1 ? '#ef4444' : daysUntil <= 3 ? '#fb923c' : '#9ca3af'};">(D-${daysUntil})</span>` : ''}
+                </div>
+                ${order.memo ? `<div class="sstssd-order-memo">📝 ${this.escapeHtml(order.memo)}</div>` : ''}
+                ${order.status === 'completed' ? `<div class="sstssd-order-status" style="color: #10b981;">✓ 완료</div>` : ''}
+                ${order.status === 'cancelled' ? `<div class="sstssd-order-status" style="color: #ef4444;">✗ 취소됨</div>` : ''}
             </div>
         `;
     }
@@ -656,8 +805,7 @@ export class InstagramModule {
             btn.addEventListener('click', (e) => {
                 e.stopPropagation();
                 const id = parseInt(btn.dataset.id);
-                this.updateDMStatus(id, 'accepted');
-                this.render(container);
+                this.showAcceptDMModal(id, container);
             });
         });
         
@@ -677,6 +825,27 @@ export class InstagramModule {
                 const id = parseInt(btn.dataset.id);
                 if (confirm('이 DM을 삭제하시겠습니까?')) {
                     this.deleteDM(id);
+                    this.render(container);
+                }
+            });
+        });
+        
+        // Complete order buttons
+        container.querySelectorAll('[data-action="complete-order"]').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const id = parseInt(btn.dataset.id);
+                this.completeOrder(id, container);
+            });
+        });
+        
+        // Cancel order buttons
+        container.querySelectorAll('[data-action="cancel-order"]').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const id = parseInt(btn.dataset.id);
+                if (confirm('이 주문을 취소하시겠습니까?')) {
+                    this.cancelOrder(id);
                     this.render(container);
                 }
             });
@@ -747,6 +916,95 @@ export class InstagramModule {
                 this.render(moduleContainer);
             }
             
+            modal.remove();
+        });
+        
+        cancelBtn.addEventListener('click', () => modal.remove());
+        overlay.addEventListener('click', () => modal.remove());
+    }
+    
+    // DM 수락 모달 (주문 정보 입력)
+    showAcceptDMModal(id, container) {
+        const dm = this.settings.instagram.dms.find(d => d.id === id);
+        if (!dm) return;
+        
+        // Calculate default delivery date (current RP date + 3 days)
+        const currentDate = this.getRpDate();
+        const defaultDeliveryDate = new Date(currentDate.getTime() + 3 * InstagramModule.DAYS_TO_MS);
+        const defaultDeliveryDateStr = this.formatDate(defaultDeliveryDate);
+        
+        const modal = document.createElement('div');
+        modal.className = 'sstssd-modal';
+        modal.innerHTML = `
+            <div class="sstssd-modal-overlay"></div>
+            <div class="sstssd-modal-content">
+                <h3>📋 DM 수락 및 주문 등록</h3>
+                <form id="sstssd-accept-dm-form">
+                    <div class="sstssd-form-group">
+                        <label>주문 내용</label>
+                        <input type="text" name="description" class="sstssd-input" value="${this.escapeHtml(dm.message)}" required>
+                    </div>
+                    <div class="sstssd-form-group">
+                        <label>예상 금액 (원)</label>
+                        <input type="number" name="estimatedPrice" class="sstssd-input" value="0" min="0" required>
+                    </div>
+                    <div class="sstssd-form-group">
+                        <label>납품 예정일</label>
+                        <input type="date" name="deliveryDate" class="sstssd-input" value="${defaultDeliveryDateStr}" required>
+                    </div>
+                    <div class="sstssd-form-group">
+                        <label>메모 (선택)</label>
+                        <textarea name="memo" class="sstssd-input" rows="3" placeholder="메모를 입력하세요"></textarea>
+                    </div>
+                    <div class="sstssd-form-actions">
+                        <button type="button" class="sstssd-btn sstssd-btn-cancel">취소</button>
+                        <button type="submit" class="sstssd-btn sstssd-btn-primary">수락 및 주문 등록</button>
+                    </div>
+                </form>
+            </div>
+        `;
+        document.body.appendChild(modal);
+        
+        const form = modal.querySelector('#sstssd-accept-dm-form');
+        const cancelBtn = modal.querySelector('.sstssd-btn-cancel');
+        const overlay = modal.querySelector('.sstssd-modal-overlay');
+        
+        form.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const formData = new FormData(form);
+            
+            // Update DM status to accepted
+            this.updateDMStatus(id, 'accepted');
+            
+            // Create order
+            const order = {
+                id: ++this.idCounter,
+                dmId: id,
+                customerName: dm.from,
+                description: formData.get('description'),
+                estimatedPrice: parseInt(formData.get('estimatedPrice')) || 0,
+                deliveryDate: formData.get('deliveryDate'),
+                status: 'pending',
+                memo: formData.get('memo') || '',
+                createdAt: this.formatDate(this.getRpDate())
+            };
+            
+            this.settings.instagram.orders.push(order);
+            
+            // Optionally create todo item
+            if (this.todoModule) {
+                const description = formData.get('description');
+                const todoTitle = `📱 ${dm.from} 주문 준비 - ${description.substring(0, 50)}${description.length > 50 ? '...' : ''}`;
+                this.todoModule.addItem({
+                    title: todoTitle,
+                    deadline: formData.get('deliveryDate'),
+                    estimatedTime: "",
+                    memo: `Instagram 주문: ${order.estimatedPrice.toLocaleString('ko-KR')}원`
+                });
+            }
+            
+            this.saveCallback();
+            this.render(container);
             modal.remove();
         });
         

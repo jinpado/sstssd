@@ -890,9 +890,11 @@ export class BakingModule {
             const linkedRecipeName = locationList.linkedRecipe ? 
                 (this.settings.baking.recipes.find(r => r.id === locationList.linkedRecipe)?.name || '') : '';
             
+            const shopEnabled = this.balanceModule.settings?.balance?.shopMode?.enabled || false;
+            
             this.balanceModule.addTransaction({
                 type: "expense",
-                source: "shop",
+                source: shopEnabled ? "shop" : "personal",
                 category: "재료 구매",
                 description: `${location} 구매${linkedRecipeName ? ': ' + linkedRecipeName : ''} (${locationList.items.length}개 항목)`,
                 amount: totalPrice,
@@ -1462,11 +1464,12 @@ export class BakingModule {
                         
                         // 잔고 모듈도 다시 렌더링
                         const balanceContainer = document.querySelector('.sstssd-module[data-module="balance"]');
-                        if (balanceContainer && this.settings.balance) {
-                            // Trigger balance module re-render via event or direct call
-                            if (typeof window.sstsdUpdateSummary === 'function') {
-                                window.sstsdUpdateSummary();
-                            }
+                        if (balanceContainer && this.balanceModule) {
+                            this.balanceModule.render(balanceContainer);
+                        }
+                        
+                        if (typeof window.sstsdUpdateSummary === 'function') {
+                            window.sstsdUpdateSummary();
                         }
                     } else {
                         alert('구매 실패: ' + result.error);
@@ -1489,6 +1492,16 @@ export class BakingModule {
                         const inventoryContainer = document.querySelector('.sstssd-module[data-module="inventory"]');
                         if (inventoryContainer && this.inventoryModule) {
                             this.inventoryModule.render(inventoryContainer);
+                        }
+                        
+                        // 잔고 모듈도 다시 렌더링
+                        const balanceContainer = document.querySelector('.sstssd-module[data-module="balance"]');
+                        if (balanceContainer && this.balanceModule) {
+                            this.balanceModule.render(balanceContainer);
+                        }
+                        
+                        if (typeof window.sstsdUpdateSummary === 'function') {
+                            window.sstsdUpdateSummary();
                         }
                     }
                 }
