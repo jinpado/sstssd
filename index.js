@@ -45,6 +45,17 @@ const INVENTORY_REGEX = /<INVENTORY>\s*\[ITEMS\]([\s\S]*?)\[\/ITEMS\]\s*\[LOW\](
 // Example: <VN1>2026/02/20 (금)¦¦14:30¦¦맑음, 6℃¦¦학교¦¦교복¦¦보통¦¦15:00 실습</VN1>
 const VN1_REGEX = /<VN1>([\s\S]*?)¦¦([\s\S]*?)¦¦([\s\S]*?)¦¦([\s\S]*?)¦¦([\s\S]*?)¦¦([\s\S]*?)¦¦([\s\S]*?)<\/VN1>/gs;
 
+// Simple hash for deduplication
+function simpleHash(str) {
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+        const char = str.charCodeAt(i);
+        hash = ((hash << 5) - hash) + char;
+        hash |= 0; // Convert to 32bit integer
+    }
+    return hash.toString(36);
+}
+
 // Extension state
 let panelElement = null;
 let todoModule = null;
@@ -56,8 +67,9 @@ let shopModule = null;
 let instagramModule = null;
 let observer = null;
 let currentChatId = null;
+let lastReceivedMessageId = undefined;  // Track last received message ID for GENERATION_ENDED
 const processedNodes = new WeakSet();  // Track processed DOM nodes to prevent duplicates
-const processedMessageIds = new Set();  // Track processed message IDs to prevent duplicates
+const processedMessageIds = new Set();  // Track processed message IDs (as "id_hash") to prevent duplicates
 
 // Initialize extension settings
 function initSettings() {
@@ -1242,7 +1254,7 @@ function initObserver() {
                         processedNodes.add(node);
                         const text = node.textContent || '';
                         
-                        // Parse DATE tags from AI responses (fallback)
+                        // DATE fallback only - lightweight, idempotent (overwrites)
                         const dateMatch = text.match(/<DATE>(\d{4}-\d{2}-\d{2})<\/DATE>/);
                         if (dateMatch) {
                             const newDate = dateMatch[1];
@@ -1253,89 +1265,9 @@ function initObserver() {
                             }
                         }
                         
-                        // Parse FIN_IN tags (income) - fallback only
-                        const finInMatches = text.matchAll(FIN_IN_REGEX);
-                        for (const match of finInMatches) {
-                            const description = match[1];
-                            const amount = parseInt(match[2]);
-                            if (balanceModule && amount > 0) {
-                                console.log(`SSTSSD: Auto-detected income (DOM fallback): ${description} ${amount}원`);
-                                const chatData = getCurrentChatData();
-                                const shopEnabled = chatData?.balance?.shopMode?.enabled;
-                                balanceModule.addTransaction({
-                                    type: "income",
-                                    source: shopEnabled ? "shop" : "personal",
-                                    category: "자동감지",
-                                    description: description,
-                                    amount: amount,
-                                    memo: "AI 응답에서 자동 감지"
-                                });
-                                renderAllModules();
-                            }
-                        }
-                        
-                        // Parse FIN_OUT tags (expense) - fallback only
-                        const finOutMatches = text.matchAll(FIN_OUT_REGEX);
-                        for (const match of finOutMatches) {
-                            const description = match[1];
-                            const amount = parseInt(match[2]);
-                            if (balanceModule && amount > 0) {
-                                console.log(`SSTSSD: Auto-detected expense (DOM fallback): ${description} ${amount}원`);
-                                const chatData = getCurrentChatData();
-                                const shopEnabled = chatData?.balance?.shopMode?.enabled;
-                                balanceModule.addTransaction({
-                                    type: "expense",
-                                    source: shopEnabled ? "shop" : "personal",
-                                    category: "자동감지",
-                                    description: description,
-                                    amount: amount,
-                                    memo: "AI 응답에서 자동 감지"
-                                });
-                                renderAllModules();
-                            }
-                        }
-                        
-                        // Parse SALE tags (shop sales) - fallback only
-                        const saleMatches = text.matchAll(SALE_REGEX);
-                        for (const match of saleMatches) {
-                            const menuName = match[1];
-                            const quantity = parseInt(match[2]);
-                            const unitPrice = parseInt(match[3]);
-                            if (shopModule && quantity > 0 && unitPrice > 0) {
-                                console.log(`SSTSSD: Auto-detected sale (DOM fallback): ${menuName} ${quantity}개 @${unitPrice}원`);
-                                const chatData = getCurrentChatData();
-                                if (chatData?.balance?.shopMode?.enabled) {
-                                    shopModule.addSale({
-                                        menuName: menuName,
-                                        quantity: quantity,
-                                        unitPrice: unitPrice
-                                    });
-                                    renderAllModules();
-                                }
-                            }
-                        }
-                        
-                        // Parse GIFT tags (gifting products) - fallback only
-                        const giftMatches = text.matchAll(GIFT_REGEX);
-                        for (const match of giftMatches) {
-                            const productName = match[1];
-                            const quantity = parseInt(match[2]);
-                            const recipient = match[3];
-                            if (inventoryModule && quantity > 0) {
-                                console.log(`SSTSSD: Auto-detected gift (DOM fallback): ${productName} ${quantity}개 → ${recipient}`);
-                                const product = inventoryModule.settings.inventory.items.find(i => 
-                                    i.name === productName && i.type === "product"
-                                );
-                                if (product) {
-                                    inventoryModule.updateItem(product.id, {
-                                        qty: Math.max(0, product.qty - quantity),
-                                        reason: `${recipient}에게 선물`,
-                                        source: "gift"
-                                    });
-                                    renderAllModules();
-                                }
-                            }
-                        }
+                        // FIN_IN, FIN_OUT, SALE, GIFT fallbacks REMOVED
+                        // These are now reliably handled by GENERATION_ENDED
+                        // Having them here caused double-processing (duplicate transactions)
                     }
                 }
             }
@@ -1614,35 +1546,52 @@ async function init() {
             reloadModules();
         });
 
-        // Listen for MESSAGE_RECEIVED to parse tags from raw text BEFORE regex transformation
+        // Listen for MESSAGE_RECEIVED to track last message ID (parsing deferred to GENERATION_ENDED)
         eventSource.on(event_types.MESSAGE_RECEIVED, (messageId) => {
+            lastReceivedMessageId = messageId;
+        });
+
+        // Listen for GENERATION_ENDED to parse tags from completed message text
+        const generationEndEvent = event_types.GENERATION_ENDED || event_types.GENERATION_STOPPED || 'generation_ended';
+        eventSource.on(generationEndEvent, () => {
             try {
-                if (processedMessageIds.has(messageId)) return;
-                processedMessageIds.add(messageId);
+                if (lastReceivedMessageId === undefined) return;
+                const messageId = lastReceivedMessageId;
+                lastReceivedMessageId = undefined;
+
+                const context = getContext();
+                if (!context.chat) return;
+                const message = context.chat[messageId];
+                if (!message || !message.mes) return;
+
+                const textHash = simpleHash(message.mes);
+                if (processedMessageIds.has(`${messageId}_${textHash}`)) return;
+                processedMessageIds.add(`${messageId}_${textHash}`);
+
                 if (processedMessageIds.size > 200) {
                     const it = processedMessageIds.values();
                     for (let i = 0; i < 100; i++) processedMessageIds.delete(it.next().value);
                 }
-                const context = getContext();
-                if (!context.chat || messageId === undefined) return;
-                const message = context.chat[messageId];
-                if (!message || !message.mes) return;
-                console.log('SSTSSD: MESSAGE_RECEIVED - parsing raw message');
+
+                console.log('SSTSSD: GENERATION_ENDED - parsing complete message');
                 parseTagsFromRawText(message.mes);
-            } catch (e) { console.error('SSTSSD: MESSAGE_RECEIVED error', e); }
+            } catch (e) { console.error('SSTSSD: GENERATION_ENDED error', e); }
         });
 
         // Listen for MESSAGE_UPDATED to re-parse updated messages
         eventSource.on(event_types.MESSAGE_UPDATED, (messageId) => {
             try {
-                processedMessageIds.delete(messageId);
                 const context = getContext();
                 if (!context.chat || messageId === undefined) return;
                 const message = context.chat[messageId];
                 if (!message || !message.mes) return;
+
+                const textHash = simpleHash(message.mes);
+                if (processedMessageIds.has(`${messageId}_${textHash}`)) return;
+                processedMessageIds.add(`${messageId}_${textHash}`);
+
                 console.log('SSTSSD: MESSAGE_UPDATED - re-parsing message');
                 parseTagsFromRawText(message.mes);
-                processedMessageIds.add(messageId);
             } catch (e) { console.error('SSTSSD: MESSAGE_UPDATED error', e); }
         });
 
