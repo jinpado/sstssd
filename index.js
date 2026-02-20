@@ -41,6 +41,9 @@ const TIMELINE_REGEX = /<TIMELINE>\s*\[DAY\]([\s\S]*?)\[\/DAY\]\s*\[WEATHER\]([\
 // INVENTORY_REGEX: Inventory check with items and low stock alerts
 // Example: <INVENTORY>[ITEMS]품명:수량:단위§구분[/ITEMS][LOW]부족품명:수량:단위§구분[/LOW]</INVENTORY>
 const INVENTORY_REGEX = /<INVENTORY>\s*\[ITEMS\]([\s\S]*?)\[\/ITEMS\]\s*\[LOW\]([\s\S]*?)\[\/LOW\]\s*<\/INVENTORY>/g;
+// VN1_REGEX: Status display tag with date, time, weather, location, outfit, condition, schedule
+// Example: <VN1>2026/02/20 (금)¦¦14:30¦¦맑음, 6℃¦¦학교¦¦교복¦¦보통¦¦15:00 실습</VN1>
+const VN1_REGEX = /<VN1>([\s\S]*?)¦¦([\s\S]*?)¦¦([\s\S]*?)¦¦([\s\S]*?)¦¦([\s\S]*?)¦¦([\s\S]*?)¦¦([\s\S]*?)<\/VN1>/gs;
 
 // Extension state
 let panelElement = null;
@@ -133,6 +136,7 @@ function getCurrentChatData() {
         extension_settings[MODULE_NAME].chats[chatId] = {
             rpDate: null,  // Roleplay current date (null = use real time)
             rpDateSource: null,  // "auto" (tag detection) | "manual" (manual setting)
+            rpTime: null,  // Roleplay current time "HH:MM" (null = use real time)
             todo: { items: [] },
             schedule: {
                 mode: 'semester',
@@ -167,7 +171,21 @@ function getRpDate() {
     const chatData = getCurrentChatData();
     
     if (chatData?.rpDate) {
-        return new Date(chatData.rpDate);
+        const rpDate = new Date(chatData.rpDate);
+        
+        // rpTime이 있으면 해당 시간 사용, 없으면 현실 시간 폴백
+        if (chatData.rpTime) {
+            const timeMatch = chatData.rpTime.match(/(\d{1,2}):(\d{2})/);
+            if (timeMatch) {
+                rpDate.setHours(parseInt(timeMatch[1]), parseInt(timeMatch[2]), 0);
+                return rpDate;
+            }
+        }
+        
+        // rpTime이 없으면 현실 시간의 시/분을 사용
+        const now = new Date();
+        rpDate.setHours(now.getHours(), now.getMinutes(), now.getSeconds());
+        return rpDate;
     }
     // rpDate가 없으면 현실 시간 폴백
     return new Date();
@@ -268,7 +286,8 @@ function updateSummary() {
     // 1. 📅 롤플 날짜 (항상 표시)
     const rpDate = getRpDate();
     const dateStr = `${rpDate.getFullYear()}-${String(rpDate.getMonth()+1).padStart(2,'0')}-${String(rpDate.getDate()).padStart(2,'0')}`;
-    summaryParts.push(`📅 ${dateStr} <button id="sstssd-edit-date-btn" class="sstssd-edit-date-btn" title="날짜 수정">✏️</button>`);
+    const timeStr = chatData?.rpTime || '';
+    summaryParts.push(`📅 ${dateStr} ${timeStr ? '🕐 ' + timeStr : ''} <button id="sstssd-edit-date-btn" class="sstssd-edit-date-btn" title="날짜 수정">✏️</button>`);
 
     // 2. 💳 개인 자산 (항상 표시)
     if (balanceModule && chatData && chatData.balance) {
@@ -571,6 +590,11 @@ function showDateSettingModal() {
         // Validate date
         if (isValidDateString(newDate)) {
             updateRpDate(newDate, 'manual');
+            // 수동 변경 시 rpTime 초기화 (다음 AI 응답에서 자동 갱신됨)
+            const chatData = getCurrentChatData();
+            if (chatData) {
+                chatData.rpTime = null;
+            }
             renderAllModules();
             modal.remove();
         }
@@ -578,6 +602,10 @@ function showDateSettingModal() {
     
     resetBtn.addEventListener('click', () => {
         updateRpDate(null, null);
+        const chatData = getCurrentChatData();
+        if (chatData) {
+            chatData.rpTime = null;
+        }
         renderAllModules();
         modal.remove();
     });
@@ -1157,6 +1185,36 @@ function parseTagsFromRawText(rawText) {
         }
     }
     
+    // Parse VN1 tags (status display with date, time, weather, location, outfit, condition, schedule)
+    const vn1Matches = [...rawText.matchAll(VN1_REGEX)];
+    for (const match of vn1Matches) {
+        const dateField = match[1].trim();   // "2026/02/20 (금)" or "2026/02/20"
+        const timeField = match[2].trim();   // "14:30"
+
+        console.log(`SSTSSD: Auto-detected VN1 tag - Date: ${dateField}, Time: ${timeField}`);
+
+        // 날짜 추출: "2026/02/20 (금)" → "2026-02-20"
+        const vn1DateMatch = dateField.match(/(\d{4})\/(\d{2})\/(\d{2})/);
+        if (vn1DateMatch) {
+            const newDate = `${vn1DateMatch[1]}-${vn1DateMatch[2]}-${vn1DateMatch[3]}`;
+            if (isValidDateString(newDate)) {
+                updateRpDate(newDate, 'auto');
+            }
+        }
+
+        // 시간 추출: "14:30" → rpTime에 저장
+        const vn1TimeMatch = timeField.match(/(\d{1,2}):(\d{2})/);
+        if (vn1TimeMatch) {
+            const chatData = getCurrentChatData();
+            if (chatData) {
+                chatData.rpTime = timeField;  // "14:30"
+                saveSettings();
+            }
+        }
+
+        anyTagFound = true;
+    }
+
     // Parse DATE tags
     const dateMatch = rawText.match(/<DATE>(\d{4}-\d{2}-\d{2})<\/DATE>/);
     if (dateMatch) {
@@ -1302,7 +1360,8 @@ function buildDashboardPrompt() {
     
     // Date
     if (chatData.rpDate) {
-        prompt += `\n[📅 Date] ${chatData.rpDate}\n`;
+        const timeStr = chatData.rpTime ? ` ${chatData.rpTime}` : '';
+        prompt += `\n[📅 Date] ${chatData.rpDate}${timeStr}\n`;
     }
     
     // Balance
