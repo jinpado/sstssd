@@ -357,14 +357,25 @@ export class BalanceModule {
         const today = this.formatDate(rpDate);
         const currentDay = rpDate.getDate();
         
+        // 이번 달의 마지막 날 계산
+        const lastDayOfMonth = new Date(rpDate.getFullYear(), rpDate.getMonth() + 1, 0).getDate();
+        
         // Skip if already processed today
         if (this.settings.balance.lastProcessedDate === today) {
             return;
         }
         
+        // Helper: 설정일이 이번 달에 매칭되는지 확인
+        const isDayMatch = (dayOfMonth) => {
+            if (dayOfMonth === currentDay) return true;
+            // 설정일이 이번 달의 마지막 날보다 크면, 마지막 날에 실행
+            if (dayOfMonth > lastDayOfMonth && currentDay === lastDayOfMonth) return true;
+            return false;
+        };
+        
         // Process recurring income
         this.settings.balance.recurringIncome.forEach(income => {
-            if (income.enabled && income.dayOfMonth === currentDay) {
+            if (income.enabled && isDayMatch(income.dayOfMonth)) {
                 const amount = income.type === "fixed" ? 
                     income.fixedAmount : 
                     this.randomInRange(income.minAmount, income.maxAmount);
@@ -386,7 +397,7 @@ export class BalanceModule {
         
         // Process recurring expenses
         this.settings.balance.recurringExpense.forEach(expense => {
-            if (expense.enabled && expense.dayOfMonth === currentDay) {
+            if (expense.enabled && isDayMatch(expense.dayOfMonth)) {
                 this.addTransaction({
                     type: "expense",
                     source: "personal",
@@ -402,7 +413,7 @@ export class BalanceModule {
         // Process shop recurring expenses
         if (this.settings.balance.shopMode.enabled) {
             this.settings.balance.shopMode.shopRecurringExpense.forEach(expense => {
-                if (expense.enabled && expense.dayOfMonth === currentDay) {
+                if (expense.enabled && isDayMatch(expense.dayOfMonth)) {
                     this.addTransaction({
                         type: "expense",
                         source: "shop",

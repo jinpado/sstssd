@@ -65,6 +65,11 @@ export class InstagramModule {
             this.settings.instagram.orders = [];
         }
         
+        // Initialize lastDecayDate if not exists
+        if (!this.settings.instagram.lastDecayDate) {
+            this.settings.instagram.lastDecayDate = null;
+        }
+        
         // Initialize orders sub-accordion state if not exists
         if (!this.settings.instagram.subAccordionState) {
             this.settings.instagram.subAccordionState = {
@@ -250,6 +255,11 @@ export class InstagramModule {
         if (!this.settings.instagram.lastPostDate) return;
         
         const today = this.getRpDate();
+        const todayStr = this.formatDate(today);
+        
+        // 이미 오늘 감소 처리했으면 스킵
+        if (this.settings.instagram.lastDecayDate === todayStr) return;
+        
         const lastPost = new Date(this.settings.instagram.lastPostDate);
         const daysSincePost = Math.floor((today - lastPost) / InstagramModule.DAYS_TO_MS);
         
@@ -257,6 +267,7 @@ export class InstagramModule {
             const decay = Math.floor(10 + Math.random() * 41);  // 10 to 50
             this.settings.instagram.followers = Math.max(0, this.settings.instagram.followers - decay);
             this.settings.instagram.followerChange -= decay;
+            this.settings.instagram.lastDecayDate = todayStr;
             this.saveCallback();
             
             // Update SNS income after follower decay
@@ -384,15 +395,30 @@ export class InstagramModule {
         dm.status = status;
         if (memo) dm.memo = memo;
         
-        // If accepted, add to todo module
-        if (status === "accepted" && this.todoModule) {
-            const todoTitle = `${dm.message.substring(0, 30)}${dm.message.length > 30 ? '...' : ''} (${dm.from})`;
-            this.todoModule.addItem({
-                title: todoTitle,
-                deadline: this.formatDate(new Date(this.getRpDate().getTime() + 7 * InstagramModule.DAYS_TO_MS)), // +7 days
-                estimatedTime: "",
-                memo: `Instagram DM 주문: ${dm.message}`
-            });
+        // If accepted, add to todo module AND orders array
+        if (status === "accepted") {
+            // Todo 추가 (기존)
+            if (this.todoModule) {
+                const todoTitle = `${dm.message.substring(0, 30)}${dm.message.length > 30 ? '...' : ''} (${dm.from})`;
+                this.todoModule.addItem({
+                    title: todoTitle,
+                    deadline: this.formatDate(new Date(this.getRpDate().getTime() + 7 * InstagramModule.DAYS_TO_MS)), // +7 days
+                    estimatedTime: "",
+                    memo: `Instagram DM 주문: ${dm.message}`
+                });
+            }
+            
+            // 주문 배열에 추가 (신규)
+            const newOrder = {
+                id: ++this.idCounter,
+                dmId: dm.id,
+                customerName: dm.from,
+                description: dm.message,
+                estimatedPrice: 0,
+                status: 'pending',
+                createdAt: this.formatDate(this.getRpDate())
+            };
+            this.settings.instagram.orders.push(newOrder);
         }
         
         this.saveCallback();

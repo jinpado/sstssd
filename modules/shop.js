@@ -128,12 +128,14 @@ export class ShopModule {
     // ===== 판매 관리 =====
     addSale(data) {
         const now = new Date(this.getRpDate());
+        const quantity = parseInt(data.quantity) || 0;
+        const unitPrice = parseInt(data.unitPrice) || 0;
         const newSale = {
             id: ++this.idCounter,
             menuName: data.menuName,
-            quantity: data.quantity,
-            unitPrice: data.unitPrice,
-            totalPrice: data.unitPrice * data.quantity,
+            quantity: quantity,
+            unitPrice: unitPrice,
+            totalPrice: unitPrice * quantity,
             date: this.formatDate(now),
             time: this.formatTime(now),
             operator: data.operator || this.getDefaultOperator()
@@ -145,7 +147,7 @@ export class ShopModule {
         if (this.inventoryModule) {
             this.inventoryModule.changeItemQty(
                 data.menuName,
-                -data.quantity,
+                -quantity,
                 `판매 (${data.operator})`,
                 "shop"
             );
@@ -157,7 +159,7 @@ export class ShopModule {
                 type: "income",
                 source: "shop",
                 category: "매출",
-                description: `${data.menuName} ${data.quantity}개 판매`,
+                description: `${data.menuName} ${quantity}개 판매`,
                 amount: newSale.totalPrice,
                 memo: `판매자: ${data.operator}`,
                 isRecurring: false

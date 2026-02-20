@@ -187,6 +187,8 @@ export class BakingModule {
             return { success: false, error: "레시피를 찾을 수 없습니다" };
         }
         
+        const skippedIngredients = [];
+        
         // 재료 확인 & 차감 (보유 시에만 - RP에서 이미 구매했을 수 있음)
         if (this.inventoryModule && recipe.ingredients && recipe.ingredients.length > 0) {
             for (const ingredient of recipe.ingredients) {
@@ -201,6 +203,8 @@ export class BakingModule {
                         `${recipe.name} ×${recipe.yieldQty * multiplier} 제작`,
                         "baking"
                     );
+                } else {
+                    skippedIngredients.push(ingredient.name);
                 }
             }
             
@@ -211,6 +215,16 @@ export class BakingModule {
                 unit: recipe.yieldUnit,
                 reason: `${recipe.name} ×${recipe.yieldQty * multiplier} 제작`
             });
+        }
+        
+        // 부족 재료 알림
+        if (skippedIngredients.length > 0) {
+            const message = `⚠️ 일부 재료 재고가 부족하여 차감 없이 제작되었습니다:\n${skippedIngredients.join(', ')}`;
+            if (typeof toastr !== 'undefined') {
+                toastr.warning(message, '재료 부족', { timeOut: 5000 });
+            } else {
+                console.warn('SSTSSD:', message);
+            }
         }
         
         // 베이킹 이력 추가
@@ -241,6 +255,7 @@ export class BakingModule {
         }
         
         const multiplier = recipe.multiplier || 1;
+        const skippedIngredients = [];
         
         // 1. 재료 차감 (보유 시에만)
         if (this.inventoryModule && recipe.ingredients && recipe.ingredients.length > 0) {
@@ -255,7 +270,19 @@ export class BakingModule {
                         `${recipe.name} 제작`,
                         "baking"
                     );
+                } else {
+                    skippedIngredients.push(ingredient.name);
                 }
+            }
+        }
+        
+        // 부족 재료 알림
+        if (skippedIngredients.length > 0) {
+            const message = `⚠️ 일부 재료 재고가 부족하여 차감 없이 제작되었습니다:\n${skippedIngredients.join(', ')}`;
+            if (typeof toastr !== 'undefined') {
+                toastr.warning(message, '재료 부족', { timeOut: 5000 });
+            } else {
+                console.warn('SSTSSD:', message);
             }
         }
         
@@ -992,7 +1019,7 @@ export class BakingModule {
     }
     
     formatCurrency(amount) {
-        return amount.toLocaleString('ko-KR');
+        return amount.toLocaleString('ko-KR') + '원';
     }
     
     // ===== UI 렌더링 =====
@@ -1230,7 +1257,7 @@ export class BakingModule {
                 
                 <div class="sstssd-shopping-total">
                     <span>총 예상:</span>
-                    <span class="sstssd-amount">${this.formatCurrency(totalPrice)}원</span>
+                    <span class="sstssd-amount">${this.formatCurrency(totalPrice)}</span>
                 </div>
                 
                 <div class="sstssd-shopping-actions">
@@ -1258,7 +1285,7 @@ export class BakingModule {
                 ${locationList.items.map(item => this.renderShoppingListItem(item, locationList.id, locationName)).join('')}
                 <div class="sstssd-shopping-subtotal">
                     <span>💰 총액:</span>
-                    <span class="sstssd-amount">${this.formatCurrency(locationList.totalPrice)}원</span>
+                    <span class="sstssd-amount">${this.formatCurrency(locationList.totalPrice)}</span>
                 </div>
                 <button class="sstssd-btn sstssd-btn-sm sstssd-btn-primary" 
                         data-action="complete-purchase" 
@@ -1288,7 +1315,7 @@ export class BakingModule {
                             </div>
                         ` : ''}
                     </div>
-                    <span class="sstssd-shopping-price">${isUnpriced ? '직접 입력 필요' : this.formatCurrency(item.price) + '원'}</span>
+                    <span class="sstssd-shopping-price">${isUnpriced ? '직접 입력 필요' : this.formatCurrency(item.price)}</span>
                 </div>
                 <div class="sstssd-shopping-item-actions">
                     <button class="sstssd-btn sstssd-btn-xs" data-action="edit-shopping-item" data-location-id="${locationId}" data-item-id="${item.id}">✏️</button>
@@ -1454,7 +1481,7 @@ export class BakingModule {
                 if (confirm('이 장소의 구매를 완료하시겠습니까?')) {
                     const result = await this.completePurchase(locationId);
                     if (result.success) {
-                        alert(`구매 완료! ${result.itemCount}개 항목, 총 ${this.formatCurrency(result.totalPrice)}원`);
+                        alert(`구매 완료! ${result.itemCount}개 항목, 총 ${this.formatCurrency(result.totalPrice)}`);
                         this.render(container);
                         
                         // 재고 모듈도 다시 렌더링
@@ -1486,7 +1513,7 @@ export class BakingModule {
                 if (confirm('전체 구매를 완료하시겠습니까?')) {
                     const result = await this.completeAllPurchases();
                     if (result.success) {
-                        alert(`전체 구매 완료! ${result.totalItems}개 항목, 총 ${this.formatCurrency(result.totalPrice)}원`);
+                        alert(`전체 구매 완료! ${result.totalItems}개 항목, 총 ${this.formatCurrency(result.totalPrice)}`);
                         this.render(container);
                         
                         // 재고 모듈도 다시 렌더링
