@@ -169,20 +169,14 @@ export class ScheduleModule {
                 appointments: []
             };
         }
-        // Migration: if semesters doesn't exist, initialize from defaults
-        if (!this.settings.schedule.semesters) {
+        // Migration: if semesters doesn't exist or is empty, set from defaults
+        if (!this.settings.schedule.semesters || Object.keys(this.settings.schedule.semesters || {}).length === 0) {
             this.settings.schedule.semesters = JSON.parse(JSON.stringify(ScheduleModule.DEFAULT_SEMESTERS));
-        } else {
-            // Restore any missing semester keys from defaults
-            for (const [key, value] of Object.entries(ScheduleModule.DEFAULT_SEMESTERS)) {
-                if (!this.settings.schedule.semesters[key]) {
-                    this.settings.schedule.semesters[key] = JSON.parse(JSON.stringify(value));
-                }
-            }
         }
-        // If currentSemester is empty/falsy (includes '' from old versions), default to '1-1'
-        if (!this.settings.schedule.currentSemester) {
-            this.settings.schedule.currentSemester = '1-1';
+        // Preserve saved currentSemester. Default to '' (no semester selected) for new chats.
+        // Users must manually select their semester from the dropdown.
+        if (this.settings.schedule.currentSemester === undefined || this.settings.schedule.currentSemester === null) {
+            this.settings.schedule.currentSemester = '';
         }
         // Sync timetable to current semester (null when no semester selected)
         this.settings.schedule.timetable = this.settings.schedule.currentSemester
