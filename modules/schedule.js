@@ -204,7 +204,14 @@ export class ScheduleModule {
         if (!this.settings.schedule.semesters) {
             const defaultSemesters = JSON.parse(JSON.stringify(ScheduleModule.DEFAULT_SEMESTERS));
             if (this.settings.schedule.timetable) {
-                defaultSemesters['1-1'] = this.settings.schedule.timetable;
+                // Only migrate old timetable if it actually has class data
+                // (not just empty day arrays from the old default initialization)
+                const hasClasses = Object.values(this.settings.schedule.timetable).some(
+                    dayClasses => Array.isArray(dayClasses) && dayClasses.length > 0
+                );
+                if (hasClasses) {
+                    defaultSemesters['1-1'] = this.settings.schedule.timetable;
+                }
             }
             this.settings.schedule.semesters = defaultSemesters;
             this.settings.schedule.currentSemester = this.settings.schedule.currentSemester || '1-1';
