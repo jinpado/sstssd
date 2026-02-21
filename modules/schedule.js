@@ -173,8 +173,10 @@ export class ScheduleModule {
         if (!this.settings.schedule.semesters) {
             this.settings.schedule.semesters = JSON.parse(JSON.stringify(ScheduleModule.DEFAULT_SEMESTERS));
         }
-        // Always reset currentSemester to '' so users must select explicitly
-        this.settings.schedule.currentSemester = '';
+        // 저장된 currentSemester가 없을 때만 초기화 (사용자가 선택한 학기 유지)
+        if (this.settings.schedule.currentSemester === undefined || this.settings.schedule.currentSemester === null) {
+            this.settings.schedule.currentSemester = '';
+        }
         // Sync timetable to current semester (null when no semester selected)
         this.settings.schedule.timetable = this.settings.schedule.currentSemester
             ? this.settings.schedule.semesters[this.settings.schedule.currentSemester]
