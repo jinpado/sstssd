@@ -383,6 +383,10 @@ export class InstagramModule {
         };
         
         this.settings.instagram.dms.unshift(newDM);
+        // Trim DM history to prevent save file bloat (keep recent 100)
+        if (this.settings.instagram.dms.length > 100) {
+            this.settings.instagram.dms = this.settings.instagram.dms.slice(0, 100);
+        }
         this.saveCallback();
         return newDM;
     }

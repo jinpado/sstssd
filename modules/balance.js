@@ -180,7 +180,23 @@ export class BalanceModule {
         const index = this.settings.balance.goals.findIndex(g => g.id === id);
         if (index !== -1) {
             const goal = this.settings.balance.goals[index];
-            this.settings.balance.living += (goal.currentAmount || 0);
+            const refundAmount = goal.currentAmount || 0;
+            this.settings.balance.living += refundAmount;
+            
+            // Record the refund transaction so balance history is traceable
+            if (refundAmount > 0) {
+                this.addTransaction({
+                    type: "income",
+                    source: "personal",
+                    category: "저축환원",
+                    description: `저축 목표 삭제 환원 (${goal.name})`,
+                    amount: refundAmount,
+                    memo: `${goal.name} 목표 삭제로 생활비 환원`,
+                    isRecurring: false,
+                    skipBalanceUpdate: true  // Already updated living above
+                });
+            }
+            
             this.settings.balance.goals.splice(index, 1);
             this.saveCallback();
             return true;
@@ -291,6 +307,10 @@ export class BalanceModule {
         };
         
         this.settings.balance.transactions.unshift(newTransaction);  // Add to beginning
+        // Trim transaction history to prevent save file bloat (keep recent 200)
+        if (this.settings.balance.transactions.length > 200) {
+            this.settings.balance.transactions = this.settings.balance.transactions.slice(0, 200);
+        }
         
         // Update balance based on transaction (skip if caller already updated balance directly)
         if (!data.skipBalanceUpdate) {
@@ -360,8 +380,14 @@ export class BalanceModule {
         // 이번 달의 마지막 날 계산
         const lastDayOfMonth = new Date(rpDate.getFullYear(), rpDate.getMonth() + 1, 0).getDate();
         
-        // Skip if already processed today
+        // Skip if already processed today or if date was rolled back
         if (this.settings.balance.lastProcessedDate === today) {
+            return;
+        }
+        // Prevent duplicate processing when RP date is rolled back to the past
+        if (this.settings.balance.lastProcessedDate && this.settings.balance.lastProcessedDate > today) {
+            this.settings.balance.lastProcessedDate = today;
+            this.saveCallback();
             return;
         }
         

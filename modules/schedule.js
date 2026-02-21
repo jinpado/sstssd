@@ -169,9 +169,15 @@ export class ScheduleModule {
                 appointments: []
             };
         }
-        // Migration: if semesters doesn't exist, set defaults and reset currentSemester
+        // Migration: if semesters doesn't exist, initialize empty object
         if (!this.settings.schedule.semesters) {
-            this.settings.schedule.semesters = JSON.parse(JSON.stringify(ScheduleModule.DEFAULT_SEMESTERS));
+            this.settings.schedule.semesters = {};
+        }
+        // Restore any missing semester data from defaults (fixes blank timetable bug)
+        for (const [key, value] of Object.entries(ScheduleModule.DEFAULT_SEMESTERS)) {
+            if (!this.settings.schedule.semesters[key]) {
+                this.settings.schedule.semesters[key] = JSON.parse(JSON.stringify(value));
+            }
         }
         // Only initialize currentSemester if not already saved (preserve user's selected semester)
         this.settings.schedule.currentSemester ??= '';
