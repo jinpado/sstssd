@@ -160,6 +160,7 @@ export class ScheduleModule {
         this.getRpDate = getRpDate;
         this.idCounter = Date.now();
         this.moduleName = 'schedule';
+        // 1) schedule 객체 없으면 처음부터 생성
         if (!this.settings.schedule) {
             this.settings.schedule = {
                 mode: 'semester',
@@ -169,19 +170,79 @@ export class ScheduleModule {
                 appointments: []
             };
         }
-        // Migration: if semesters doesn't exist or is empty, set from defaults
-        if (!this.settings.schedule.semesters || Object.keys(this.settings.schedule.semesters || {}).length === 0) {
+
+        // 2) semesters가 없거나 객체가 아니면 기본값으로 교체
+        if (!this.settings.schedule.semesters || typeof this.settings.schedule.semesters !== 'object') {
             this.settings.schedule.semesters = JSON.parse(JSON.stringify(ScheduleModule.DEFAULT_SEMESTERS));
         }
-        // Preserve saved currentSemester. Default to '' (no semester selected) for new chats.
-        // Users must manually select their semester from the dropdown.
-        if (this.settings.schedule.currentSemester === undefined || this.settings.schedule.currentSemester === null) {
+
+        // 3) 각 학기 데이터의 무결성 검증 + 자동 복구
+        this._validateAndRecoverSemesters();
+
+        // 4) currentSemester: undefined/null이면 '' (미선택)으로 설정, 기존 값은 보존
+        if (this.settings.schedule.currentSemester === undefined ||
+            this.settings.schedule.currentSemester === null) {
             this.settings.schedule.currentSemester = '';
         }
-        // Sync timetable to current semester (null when no semester selected)
-        this.settings.schedule.timetable = this.settings.schedule.currentSemester
-            ? this.settings.schedule.semesters[this.settings.schedule.currentSemester]
-            : null;
+
+        // 5) appointments 없으면 빈 배열
+        if (!Array.isArray(this.settings.schedule.appointments)) {
+            this.settings.schedule.appointments = [];
+        }
+
+        // 6) timetable을 현재 학기에 동기화
+        this._syncTimetable();
+    }
+
+    /**
+     * 저장된 학기 데이터의 무결성을 검증하고 필요시 DEFAULT_SEMESTERS에서 복구합니다.
+     */
+    _validateAndRecoverSemesters() {
+        const defaultKeys = Object.keys(ScheduleModule.DEFAULT_SEMESTERS);
+        const requiredDays = ['월', '화', '수', '목', '금', '토', '일'];
+        let changed = false;
+
+        for (const semKey of defaultKeys) {
+            const semData = this.settings.schedule.semesters[semKey];
+            let needsRecovery = false;
+
+            if (!semData || typeof semData !== 'object') {
+                needsRecovery = true;
+            } else {
+                const hasDayKeys = requiredDays.every(day => Array.isArray(semData[day]));
+                if (!hasDayKeys) {
+                    needsRecovery = true;
+                } else {
+                    const totalClasses = requiredDays.reduce((sum, day) => sum + (semData[day]?.length || 0), 0);
+                    if (totalClasses === 0) {
+                        needsRecovery = true;
+                    }
+                }
+            }
+
+            if (needsRecovery && ScheduleModule.DEFAULT_SEMESTERS[semKey]) {
+                console.log(`SSTSSD: Recovering semester ${semKey} from defaults (data was empty or corrupted)`);
+                this.settings.schedule.semesters[semKey] =
+                    JSON.parse(JSON.stringify(ScheduleModule.DEFAULT_SEMESTERS[semKey]));
+                changed = true;
+            }
+        }
+
+        if (changed) {
+            this.saveCallback();
+        }
+    }
+
+    /**
+     * timetable을 현재 선택된 학기의 데이터로 동기화합니다.
+     */
+    _syncTimetable() {
+        const semester = this.settings.schedule.currentSemester;
+        if (semester && this.settings.schedule.semesters[semester]) {
+            this.settings.schedule.timetable = this.settings.schedule.semesters[semester];
+        } else {
+            this.settings.schedule.timetable = null;
+        }
     }
 
     // 오늘 날짜의 요일 가져오기
