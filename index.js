@@ -19,6 +19,9 @@ const MS_PER_DAY = 24 * 60 * 60 * 1000;  // Milliseconds in a day
 const FIN_IN_REGEX = /<FIN_IN>(.+?)\|(\d+)\s*<\/FIN_IN>/g;
 const FIN_OUT_REGEX = /<FIN_OUT>(.+?)\|(\d+)\s*<\/FIN_OUT>/g;
 const SALE_REGEX = /<SALE>(.+?)\|(\d+)\|(\d+)\s*<\/SALE>/g;
+// GIFT_REGEX: Gift product from personal stock
+// Example: <GIFT>소금쿠키|5|친구이름</GIFT>
+const GIFT_REGEX = /<GIFT>(.+?)\|(\d+)\|?([^<]*)<\/GIFT>/g;
 // SHOP_DETAILED_REGEX: Enhanced shopping list with detailed items
 // Supports both WI format (품명|가격§구분) and QR format (🔸 item — qty — price원)
 // Example: <SHOP>[STORE]학교 앞 마트[/STORE][WHEN]작업 전[/WHEN][ITEMS]🔸 아몬드 가루 — 200g — 4,500원[/ITEMS][TOTAL]22,000원[/TOTAL]</SHOP>
@@ -660,6 +663,9 @@ function initModules() {
         if (shopContainer) {
             shopModule.render(shopContainer);
         }
+        
+        // Connect bakingModule to instagramModule (after both are initialized)
+        instagramModule.bakingModule = bakingModule;
 
         // Set initial module states from global settings
         globalSettings.openModules.forEach(moduleName => {
@@ -1113,8 +1119,25 @@ function parseTagsFromRawText(rawText) {
                     quantity: quantity,
                     unitPrice: unitPrice
                 });
+                // 가게 진열 완성품 차감
+                if (bakingModule) {
+                    bakingModule.deductShopProduct(menuName, quantity);
+                }
                 anyTagFound = true;
             }
+        }
+    }
+    
+    // Parse GIFT tags (gift from personal stock)
+    const giftMatches = [...rawText.matchAll(GIFT_REGEX)];
+    for (const match of giftMatches) {
+        const productName = match[1].trim();
+        const quantity = parseInt(match[2]);
+        const recipient = match[3] ? match[3].trim() : '?';
+        if (bakingModule && productName && quantity > 0) {
+            console.log(`SSTSSD: Auto-detected gift (MESSAGE_RECEIVED): ${productName} ${quantity}개 → ${recipient}`);
+            bakingModule.deductProduct(productName, quantity);
+            anyTagFound = true;
         }
     }
     
@@ -1359,6 +1382,26 @@ function buildDashboardPrompt() {
         }
         
         prompt += `\nWhen customer buys, use: <SALE>품명|수량|단가</SALE>\n`;
+        
+        // 가게 진열 완성품 정보
+        if (chatData.baking?.products) {
+            const shopProducts = chatData.baking.products.filter(p => p.shopQuantity > 0);
+            if (shopProducts.length > 0) {
+                prompt += `가게 진열품: ${shopProducts.map(p => `${p.name}(${p.shopQuantity}개)`).join(', ')}\n`;
+            }
+        }
+    }
+    
+    // 완성품 개인 보유 (가게 모드 OFF 포함)
+    if (bakingModule && chatData.baking?.products) {
+        const personalProducts = chatData.baking.products.filter(p => p.quantity > 0);
+        if (personalProducts.length > 0) {
+            prompt += `\n[🧁 완성품 개인 보유]\n`;
+            personalProducts.forEach(p => {
+                prompt += `- ${p.name}: ${p.quantity}개\n`;
+            });
+            prompt += `선물 시: <GIFT>제품명|수량|받는사람</GIFT>\n`;
+        }
     }
     
     // Tag instructions
@@ -1368,6 +1411,7 @@ function buildDashboardPrompt() {
     if (chatData.balance?.shopMode?.enabled) {
         prompt += `<SALE>품명|수량|단가</SALE> — 판매 발생 시\n`;
     }
+    prompt += `<GIFT>제품명|수량|받는사람</GIFT> — 완성품 선물 시\n`;
     prompt += `<BAKE>[MENU]메뉴명|수량[/MENU][START]시작일시[/START][END]종료일시[/END][STEPS]상태|단계명|시간§구분[/STEPS][PCT]진행률[/PCT]</BAKE> — 베이킹 진행 시\n`;
     prompt += `<SHOP>[STORE]구매장소[/STORE][WHEN]시점[/WHEN][ITEMS]품명|가격§구분[/ITEMS][TOTAL]합계금액[/TOTAL]</SHOP> — 재료 구매 필요 시\n`;
     
