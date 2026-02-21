@@ -152,9 +152,9 @@ function getCurrentChatData() {
             todo: { items: [] },
             schedule: {
                 mode: 'semester',
-                timetable: {
-                    '월': [], '화': [], '수': [], '목': [], '금': [], '토': [], '일': []
-                },
+                currentSemester: '1-1',
+                semesters: null,  // Will be initialized by ScheduleModule constructor
+                timetable: null,  // Synced to semesters[currentSemester] by ScheduleModule
                 appointments: []
             },
             balance: null,  // Will be initialized by BalanceModule
@@ -1311,6 +1311,11 @@ function buildDashboardPrompt() {
     
     // Schedule
     if (scheduleModule && chatData.schedule) {
+        const mode = chatData.schedule.mode;
+        if (mode === 'semester') {
+            const semesterKey = chatData.schedule.currentSemester || '1-1';
+            prompt += `\n[🎓 학기] 현재 ${scheduleModule.getSemesterLabel(semesterKey)}\n`;
+        }
         const todaySchedule = scheduleModule.getTodaySchedule();
         if (todaySchedule.length > 0) {
             prompt += `\n[📅 Today's Schedule]\n`;
