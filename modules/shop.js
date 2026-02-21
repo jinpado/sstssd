@@ -1,12 +1,11 @@
 // 🏪 가게 모듈 (Shop Module)
 export class ShopModule {
-    constructor(settings, saveCallback, getGlobalSettings, getRpDate, balanceModule, inventoryModule) {
+    constructor(settings, saveCallback, getGlobalSettings, getRpDate, balanceModule) {
         this.settings = settings;
         this.saveCallback = saveCallback;
         this.getGlobalSettings = getGlobalSettings;
         this.getRpDate = getRpDate;
         this.balanceModule = balanceModule;
-        this.inventoryModule = inventoryModule;
         this.moduleName = 'shop';
         this.idCounter = Date.now();
         
@@ -145,16 +144,6 @@ export class ShopModule {
         // Trim sales history to prevent save file bloat (keep recent 300)
         if (this.settings.shop.sales.length > 300) {
             this.settings.shop.sales = this.settings.shop.sales.slice(-300);
-        }
-        
-        // Update inventory (decrease sale product stock)
-        if (this.inventoryModule) {
-            this.inventoryModule.changeItemQty(
-                data.menuName,
-                -quantity,
-                `판매 (${data.operator})`,
-                "shop"
-            );
         }
         
         // Update balance (increase shop operating fund)
@@ -388,18 +377,9 @@ export class ShopModule {
             .sort((a, b) => b.date.localeCompare(a.date));
     }
     
-    // ===== 판매용 재고 =====
+    // Get sale inventory (always empty - inventory module removed)
     getSaleInventory() {
-        if (!this.inventoryModule || !this.inventoryModule.settings.inventory) {
-            return [];
-        }
-        
-        return this.inventoryModule.settings.inventory.items
-            .filter(item => item.type === "product")
-            .map(item => ({
-                ...item,
-                lowStock: item.qty <= this.LOW_STOCK_THRESHOLD
-            }));
+        return [];
     }
     
     // Get default operator (owner or staff if on shift)

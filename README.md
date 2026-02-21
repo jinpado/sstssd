@@ -1,6 +1,6 @@
 # Side Dashboard Extension for SillyTavern
 
-A third-party extension for SillyTavern that adds a comprehensive side dashboard panel with todo, schedule, balance, inventory, baking, and shop management features.
+A third-party extension for SillyTavern that adds a comprehensive side dashboard panel with todo, schedule, balance, baking, and shop management features.
 
 ## Features
 
@@ -31,16 +31,9 @@ A third-party extension for SillyTavern that adds a comprehensive side dashboard
 - **Shop Mode**: Separate shop operating fund from personal finances
 - **Transaction History**: Detailed record of all financial activities
 
-### 📦 Inventory Module
-- **Ingredient Management**: Track baking ingredients by category
-- **Product Tracking**: Monitor finished products ready for sale
-- **Stock Alerts**: Low stock and out-of-stock warnings
-- **History Tracking**: Record of all inventory changes
-
 ### 🧁 Baking Module
 - **Recipe Management**: Create and store baking recipes
-- **Ingredient Tracking**: Automatic inventory deduction when baking
-- **Product Registration**: Add finished products to inventory
+- **Product Registration**: Add finished products when baking is complete
 - **Batch Tracking**: Record quantity and yield for each bake
 
 ### 🏪 Shop Module (NEW)
@@ -50,7 +43,6 @@ A third-party extension for SillyTavern that adds a comprehensive side dashboard
   - Automatic sale recording via `<SALE>` tags
   - Daily sales summary with breakdown
   - Monthly revenue reports
-- **Sale Inventory**: Track products available for sale with low-stock alerts
 - **Staff Management**:
   - Register part-time staff with hourly wages
   - Skill tracking for roleplay (화술, 포장, etc.)
@@ -58,7 +50,7 @@ A third-party extension for SillyTavern that adds a comprehensive side dashboard
   - Payroll management (daily or monthly payment modes)
 - **Daily Settlement**: End-of-day summary when closing shop
 - **Monthly Reports**: Revenue, costs, and top-selling items
-- **Integration**: Automatic balance updates and inventory deduction on sales
+- **Integration**: Automatic balance updates on sales
 
 ## Design
 
@@ -70,7 +62,6 @@ A third-party extension for SillyTavern that adds a comprehensive side dashboard
   - Todo: `#60a5fa` (sky blue)
   - Schedule: `#c084fc` (light purple)
   - Balance: `#a78bfa` (purple)
-  - Inventory: `#10b981` (green)
   - Baking: `#ec4899` (pink)
   - Shop: `#fb923c` (orange)
 
@@ -103,9 +94,8 @@ sstssd/
 │   ├── todo.js          # Todo module
 │   ├── schedule.js      # Schedule module
 │   ├── balance.js       # Balance/finance module
-│   ├── inventory.js     # Inventory management module
 │   ├── baking.js        # Baking/recipe module
-│   └── shop.js          # Shop management module (NEW)
+│   └── shop.js          # Shop management module
 └── README.md            # This file
 ```
 
@@ -137,10 +127,6 @@ All data is stored in SillyTavern's `extension_settings` using the key `sstssd`:
           // ... more shop settings
         }
       },
-      inventory: {
-        items: [...],        // Ingredients and products
-        history: [...]       // Inventory changes
-      },
       baking: {
         recipes: [...]       // Baking recipes
       },
@@ -156,7 +142,7 @@ All data is stored in SillyTavern's `extension_settings` using the key `sstssd`:
   },
   globalSettings: {
     panelOpen: true,
-    openModules: ['todo', 'schedule', 'balance', 'inventory', 'baking', 'shop']
+    openModules: ['todo', 'schedule', 'balance', 'baking', 'shop']
   }
 }
 ```
@@ -178,7 +164,6 @@ The extension supports automatic data extraction from AI chat messages using XML
 AI: "You sold 3 strawberry macarons today! <SALE>딸기 마카롱|3|3500</SALE>"
 Result: 
 - +10,500원 added to shop operating fund
-- Inventory decreased by 3 units
 - Sale recorded in daily summary
 - Toast notification shown
 ```
