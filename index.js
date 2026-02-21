@@ -6,7 +6,6 @@ import { saveSettingsDebounced, eventSource, event_types } from '../../../../scr
 import { TodoModule } from './modules/todo.js';
 import { ScheduleModule } from './modules/schedule.js';
 import { BalanceModule } from './modules/balance.js';
-import { InventoryModule } from './modules/inventory.js';
 import { BakingModule } from './modules/baking.js';
 import { ShopModule } from './modules/shop.js';
 import { InstagramModule } from './modules/instagram.js';
@@ -20,7 +19,6 @@ const MS_PER_DAY = 24 * 60 * 60 * 1000;  // Milliseconds in a day
 const FIN_IN_REGEX = /<FIN_IN>(.+?)\|(\d+)\s*<\/FIN_IN>/g;
 const FIN_OUT_REGEX = /<FIN_OUT>(.+?)\|(\d+)\s*<\/FIN_OUT>/g;
 const SALE_REGEX = /<SALE>(.+?)\|(\d+)\|(\d+)\s*<\/SALE>/g;
-const GIFT_REGEX = /<GIFT>(.+?)\|(\d+)\|(.+?)\s*<\/GIFT>/g;
 // SHOP_DETAILED_REGEX: Enhanced shopping list with detailed items
 // Supports both WI format (품명|가격§구분) and QR format (🔸 item — qty — price원)
 // Example: <SHOP>[STORE]학교 앞 마트[/STORE][WHEN]작업 전[/WHEN][ITEMS]🔸 아몬드 가루 — 200g — 4,500원[/ITEMS][TOTAL]22,000원[/TOTAL]</SHOP>
@@ -38,9 +36,6 @@ const TASKS_REGEX = /<TASKS>\s*\[URGENT\]([\s\S]*?)\[\/URGENT\]\s*\[WEEK\]([\s\S
 // TIMELINE_REGEX: Schedule with day, weather, and events
 // Example: <TIMELINE>[DAY]2024/01/15 (월)[/DAY][WEATHER]맑음, 5°C[/WEATHER][EVENTS]유형|시간|제목|장소§구분[/EVENTS]</TIMELINE>
 const TIMELINE_REGEX = /<TIMELINE>\s*\[DAY\]([\s\S]*?)\[\/DAY\]\s*\[WEATHER\]([\s\S]*?)\[\/WEATHER\]\s*\[EVENTS\]([\s\S]*?)\[\/EVENTS\]\s*<\/TIMELINE>/g;
-// INVENTORY_REGEX: Inventory check with items and low stock alerts
-// Example: <INVENTORY>[ITEMS]품명:수량:단위§구분[/ITEMS][LOW]부족품명:수량:단위§구분[/LOW]</INVENTORY>
-const INVENTORY_REGEX = /<INVENTORY>\s*\[ITEMS\]([\s\S]*?)\[\/ITEMS\]\s*\[LOW\]([\s\S]*?)\[\/LOW\]\s*<\/INVENTORY>/g;
 // VN1_REGEX: Status display tag with date, time, weather, location, outfit, condition, schedule
 // Example: <VN1>2026/02/20 (금)¦¦14:30¦¦맑음, 6℃¦¦학교¦¦교복¦¦보통¦¦15:00 실습</VN1>
 const VN1_REGEX = /<VN1>([\s\S]*?)¦¦([\s\S]*?)¦¦([\s\S]*?)¦¦([\s\S]*?)¦¦([\s\S]*?)¦¦([\s\S]*?)¦¦([\s\S]*?)<\/VN1>/gs;
@@ -50,7 +45,6 @@ let panelElement = null;
 let todoModule = null;
 let scheduleModule = null;
 let balanceModule = null;
-let inventoryModule = null;
 let bakingModule = null;
 let shopModule = null;
 let instagramModule = null;
@@ -78,7 +72,7 @@ function initSettings() {
             chats: {},  // Chat-specific data
             globalSettings: {
                 panelOpen: true,
-                openModules: ['todo', 'schedule', 'balance', 'inventory', 'baking', 'shop', 'instagram']
+                openModules: ['todo', 'schedule', 'balance', 'baking', 'shop', 'instagram']
             }
         };
     }
@@ -100,7 +94,7 @@ function initSettings() {
         // Preserve global settings if they exist
         const panelOpen = extension_settings[MODULE_NAME].panelOpen !== undefined ? 
             extension_settings[MODULE_NAME].panelOpen : true;
-        const openModules = extension_settings[MODULE_NAME].openModules || ['todo', 'schedule', 'balance', 'inventory', 'baking', 'shop', 'instagram'];
+        const openModules = extension_settings[MODULE_NAME].openModules || ['todo', 'schedule', 'balance', 'baking', 'shop', 'instagram'];
         
         // Restructure to new format
         extension_settings[MODULE_NAME] = {
@@ -124,7 +118,7 @@ function initSettings() {
     if (!extension_settings[MODULE_NAME].globalSettings) {
         extension_settings[MODULE_NAME].globalSettings = {
             panelOpen: true,
-            openModules: ['todo', 'schedule', 'balance', 'inventory', 'baking', 'shop', 'instagram']
+            openModules: ['todo', 'schedule', 'balance', 'baking', 'shop', 'instagram']
         };
     }
     
@@ -158,7 +152,6 @@ function getCurrentChatData() {
                 appointments: []
             },
             balance: null,  // Will be initialized by BalanceModule
-            inventory: null,  // Will be initialized by InventoryModule
             baking: null,  // Will be initialized by BakingModule
             shop: null,  // Will be initialized by ShopModule
             instagram: null  // Will be initialized by InstagramModule
@@ -252,9 +245,6 @@ function createPanel() {
             </div>
             <div class="sstssd-module" data-module="schedule">
                 <!-- Schedule module content -->
-            </div>
-            <div class="sstssd-module" data-module="inventory">
-                <!-- Inventory module content -->
             </div>
             <div class="sstssd-module" data-module="baking">
                 <!-- Baking module content -->
@@ -450,7 +440,6 @@ function showNoChatMessage() {
     const balanceContainer = document.querySelector('.sstssd-module[data-module="balance"]');
     const todoContainer = document.querySelector('.sstssd-module[data-module="todo"]');
     const scheduleContainer = document.querySelector('.sstssd-module[data-module="schedule"]');
-    const inventoryContainer = document.querySelector('.sstssd-module[data-module="inventory"]');
     const bakingContainer = document.querySelector('.sstssd-module[data-module="baking"]');
     const shopContainer = document.querySelector('.sstssd-module[data-module="shop"]');
     const instagramContainer = document.querySelector('.sstssd-module[data-module="instagram"]');
@@ -495,21 +484,6 @@ function showNoChatMessage() {
                 <button class="sstssd-module-toggle">▼</button>
             </div>
             <div class="sstssd-module-content" data-module="schedule">
-                <div class="sstssd-empty">채팅방을 선택해주세요</div>
-            </div>
-        `;
-    }
-    
-    if (inventoryContainer) {
-        inventoryContainer.innerHTML = `
-            <div class="sstssd-module-header" data-module="inventory">
-                <div class="sstssd-module-title">
-                    <span class="sstssd-module-icon">📦</span>
-                    <span>재고</span>
-                </div>
-                <button class="sstssd-module-toggle">▼</button>
-            </div>
-            <div class="sstssd-module-content" data-module="inventory">
                 <div class="sstssd-empty">채팅방을 선택해주세요</div>
             </div>
         `;
@@ -666,13 +640,6 @@ function initModules() {
             scheduleModule.render(scheduleContainer);
         }
         
-        // Initialize Inventory module with chat-specific data and global settings getter
-        inventoryModule = new InventoryModule(chatData, saveSettings, getGlobalSettings, getRpDate, balanceModule);
-        const inventoryContainer = document.querySelector('.sstssd-module[data-module="inventory"]');
-        if (inventoryContainer) {
-            inventoryModule.render(inventoryContainer);
-        }
-        
         // Initialize Instagram module with chat-specific data, global settings getter, balance and todo modules
         instagramModule = new InstagramModule(chatData, saveSettings, getGlobalSettings, getRpDate, balanceModule, todoModule);
         const instagramContainer = document.querySelector('.sstssd-module[data-module="instagram"]');
@@ -680,15 +647,15 @@ function initModules() {
             instagramModule.render(instagramContainer);
         }
         
-        // Initialize Baking module with chat-specific data, global settings getter, inventory and instagram modules
-        bakingModule = new BakingModule(chatData, saveSettings, getGlobalSettings, getRpDate, inventoryModule, instagramModule, balanceModule, getContext);
+        // Initialize Baking module with chat-specific data, global settings getter, and instagram module
+        bakingModule = new BakingModule(chatData, saveSettings, getGlobalSettings, getRpDate, instagramModule, balanceModule, getContext);
         const bakingContainer = document.querySelector('.sstssd-module[data-module="baking"]');
         if (bakingContainer) {
             bakingModule.render(bakingContainer);
         }
         
-        // Initialize Shop module with chat-specific data, global settings getter, balance and inventory modules
-        shopModule = new ShopModule(chatData, saveSettings, getGlobalSettings, getRpDate, balanceModule, inventoryModule);
+        // Initialize Shop module with chat-specific data, global settings getter, and balance module
+        shopModule = new ShopModule(chatData, saveSettings, getGlobalSettings, getRpDate, balanceModule);
         const shopContainer = document.querySelector('.sstssd-module[data-module="shop"]');
         if (shopContainer) {
             shopModule.render(shopContainer);
@@ -1089,30 +1056,6 @@ function parseTagsFromRawText(rawText) {
         }
     }
     
-    // Parse INVENTORY tags
-    const inventoryMatches = [...rawText.matchAll(INVENTORY_REGEX)];
-    for (const match of inventoryMatches) {
-        const items = match[1].trim();
-        const low = match[2].trim();
-        
-        if (inventoryModule) {
-            console.log(`SSTSSD: Auto-detected INVENTORY tag (MESSAGE_RECEIVED)`);
-            
-            if (low) {
-                const lowItems = low.split('§').map(i => i.trim()).filter(i => i);
-                for (const item of lowItems) {
-                    const parts = item.split(':');
-                    if (parts.length >= 2) {
-                        const name = parts[0].trim();
-                        const qty = parts[1].trim();
-                        console.warn(`SSTSSD: Low stock alert from AI - ${name}: ${qty}`);
-                    }
-                }
-            }
-            anyTagFound = true;
-        }
-    }
-    
     // Parse FIN_IN tags (income)
     const finInMatches = [...rawText.matchAll(FIN_IN_REGEX)];
     for (const match of finInMatches) {
@@ -1169,28 +1112,6 @@ function parseTagsFromRawText(rawText) {
                     menuName: menuName,
                     quantity: quantity,
                     unitPrice: unitPrice
-                });
-                anyTagFound = true;
-            }
-        }
-    }
-    
-    // Parse GIFT tags (gifting products)
-    const giftMatches = [...rawText.matchAll(GIFT_REGEX)];
-    for (const match of giftMatches) {
-        const productName = match[1];
-        const quantity = parseInt(match[2]);
-        const recipient = match[3];
-        if (inventoryModule && quantity > 0) {
-            console.log(`SSTSSD: Auto-detected gift (MESSAGE_RECEIVED): ${productName} ${quantity}개 → ${recipient}`);
-            const product = inventoryModule.settings.inventory.items.find(i => 
-                i.name === productName && i.type === "product"
-            );
-            if (product) {
-                inventoryModule.updateItem(product.id, {
-                    qty: Math.max(0, product.qty - quantity),
-                    reason: `${recipient}에게 선물`,
-                    source: "gift"
                 });
                 anyTagFound = true;
             }
@@ -1336,22 +1257,6 @@ function buildDashboardPrompt() {
     }
 
     
-    // Inventory
-    if (inventoryModule && chatData.inventory) {
-        const alerts = inventoryModule.getAlerts();
-        const products = inventoryModule.getProducts();
-        
-        prompt += `\n[📦 Inventory]\n`;
-        if (alerts.low.length > 0 || alerts.out.length > 0) {
-            alerts.out.forEach(item => prompt += `- ❌ ${item.name}: 없음\n`);
-            alerts.low.forEach(item => prompt += `- ⚠️ ${item.name}: ${item.qty}${item.unit} (최소 ${item.minStock})\n`);
-        }
-        if (products.length > 0) {
-            prompt += `완제품:\n`;
-            products.forEach(p => prompt += `- ${p.name} ${p.qty}${p.unit}\n`);
-        }
-    }
-    
     // Baking
     if (bakingModule && chatData.baking) {
         const activeRecipes = chatData.baking.recipes.filter(r => r.status === 'in_progress');
@@ -1436,21 +1341,6 @@ function buildDashboardPrompt() {
         prompt += `영업 상태: ${shop.isOpen ? 'OPEN' : 'CLOSED'}\n`;
         
         if (shop.isOpen) {
-            // Show available stock
-            const saleProducts = inventoryModule ? 
-                inventoryModule.settings.inventory.items.filter(i => i.type === "sale_product") : [];
-            if (saleProducts.length > 0) {
-                prompt += `판매 가능:\n`;
-                saleProducts.forEach(p => {
-                    const menuItem = shop.menu.find(m => m.name === p.name);
-                    const price = menuItem ? menuItem.price : 0;
-                    prompt += `- ${p.name} ${p.qty}개 @${price.toLocaleString()}원`;
-                    if (p.qty <= 5) prompt += ' ⚠️ 품절 임박';
-                    if (p.qty <= 0) prompt += ' ❌ 품절';
-                    prompt += '\n';
-                });
-            }
-            
             // Check if staff is operating today
             const today = scheduleModule ? scheduleModule.formatDate(getRpDate()) : '';
             const todayShift = shop.shifts.find(s => s.date === today && s.status !== 'cancelled');
@@ -1469,14 +1359,12 @@ function buildDashboardPrompt() {
         }
         
         prompt += `\nWhen customer buys, use: <SALE>품명|수량|단가</SALE>\n`;
-        prompt += `When giving gifts, use: <GIFT>품명|수량|받는사람</GIFT>\n`;
     }
     
     // Tag instructions
     prompt += `\n[Available Tags]\n`;
     prompt += `<FIN_IN>항목|금액</FIN_IN> — 수입 발생 시\n`;
     prompt += `<FIN_OUT>항목|금액</FIN_OUT> — 지출 발생 시\n`;
-    prompt += `<GIFT>품명|수량|받는사람</GIFT> — 선물/증정 시\n`;
     if (chatData.balance?.shopMode?.enabled) {
         prompt += `<SALE>품명|수량|단가</SALE> — 판매 발생 시\n`;
     }
@@ -1616,4 +1504,4 @@ jQuery(async () => {
 });
 
 // Export for potential use by other extensions
-export { MODULE_NAME, todoModule, scheduleModule, balanceModule, inventoryModule, bakingModule, shopModule, getRpDate };
+export { MODULE_NAME, todoModule, scheduleModule, balanceModule, bakingModule, shopModule, getRpDate };

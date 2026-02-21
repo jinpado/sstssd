@@ -1366,13 +1366,6 @@ textarea.sstssd-input {
     transform: rotate(90deg);
 }
 
-/* ===== Inventory Module Styles ===== */
-/* Module accent color: #10b981 (emerald green) */
-
-.sstssd-module[data-module="inventory"] .sstssd-module-header {
-    border-left-color: #10b981;
-}
-
 /* Sub-sections */
 .sstssd-sub-section {
     margin-bottom: 12px;
@@ -1435,57 +1428,6 @@ textarea.sstssd-input {
     margin-bottom: 8px;
     text-transform: uppercase;
     letter-spacing: 0.5px;
-}
-
-/* Inventory items */
-.sstssd-inventory-item {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 8px 12px;
-    background: #252550;
-    border: 1px solid #2a2a4a;
-    border-radius: 6px;
-    margin-bottom: 6px;
-    transition: all 0.2s;
-}
-
-.sstssd-inventory-item:hover {
-    background: #2a2a5a;
-    border-color: #10b981;
-}
-
-.sstssd-inventory-info {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    flex: 1;
-}
-
-.sstssd-inventory-name {
-    font-size: 14px;
-    color: #e0e0e0;
-    font-weight: 500;
-}
-
-.sstssd-inventory-qty {
-    font-size: 13px;
-    color: #9ca3af;
-}
-
-.sstssd-inventory-icon {
-    font-size: 16px;
-}
-
-.sstssd-inventory-date {
-    font-size: 12px;
-    color: #6b7280;
-    margin-left: 4px;
-}
-
-.sstssd-inventory-actions {
-    display: flex;
-    gap: 4px;
 }
 
 /* Product items */
@@ -1890,31 +1832,8 @@ textarea.sstssd-input {
     color: #e0e0e0;
 }
 
-/* Sale inventory */
-.sstssd-sale-inventory-item {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 8px 12px;
-    margin-bottom: 6px;
-    background: #1e1e3a;
-    border-radius: 6px;
-    border: 1px solid #2a2a4a;
-}
-
 .sstssd-low-stock {
     border-color: #fb923c;
-}
-
-.sstssd-sale-inventory-name {
-    font-size: 13px;
-    color: #e0e0e0;
-}
-
-.sstssd-sale-inventory-qty {
-    font-size: 13px;
-    color: #9ca3af;
-    margin-left: 8px;
 }
 
 .sstssd-warning-badge {

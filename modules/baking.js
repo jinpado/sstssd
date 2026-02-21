@@ -86,12 +86,11 @@ export class BakingModule {
         'DEFAULT_PER_PIECE': 500       // 500원/개 for count-based unknown ingredients
     };
     
-    constructor(settings, saveCallback, getGlobalSettings, getRpDate, inventoryModule, instagramModule = null, balanceModule = null, getContextFn = null) {
+    constructor(settings, saveCallback, getGlobalSettings, getRpDate, instagramModule = null, balanceModule = null, getContextFn = null) {
         this.settings = settings;
         this.saveCallback = saveCallback;
         this.getGlobalSettings = getGlobalSettings;
         this.getRpDate = getRpDate;
-        this.inventoryModule = inventoryModule;
         this.instagramModule = instagramModule;
         this.balanceModule = balanceModule;
         this.getContextFn = getContextFn;
@@ -187,46 +186,6 @@ export class BakingModule {
             return { success: false, error: "레시피를 찾을 수 없습니다" };
         }
         
-        const skippedIngredients = [];
-        
-        // 재료 확인 & 차감 (보유 시에만 - RP에서 이미 구매했을 수 있음)
-        if (this.inventoryModule && recipe.ingredients && recipe.ingredients.length > 0) {
-            for (const ingredient of recipe.ingredients) {
-                const requiredQty = ingredient.qty * multiplier;
-                const item = this.inventoryModule.findIngredientFuzzy(ingredient.name);
-                
-                // 보유량이 충분하면 차감, 아니면 스킵 (이미 RP에서 구매했을 수 있음)
-                if (item && item.qty >= requiredQty) {
-                    this.inventoryModule.changeItemQty(
-                        ingredient.name,
-                        -requiredQty,
-                        `${recipe.name} ×${recipe.yieldQty * multiplier} 제작`,
-                        "baking"
-                    );
-                } else {
-                    skippedIngredients.push(ingredient.name);
-                }
-            }
-            
-            // 완제품은 항상 추가
-            this.inventoryModule.addProduct({
-                name: recipe.name,
-                qty: recipe.yieldQty * multiplier,
-                unit: recipe.yieldUnit,
-                reason: `${recipe.name} ×${recipe.yieldQty * multiplier} 제작`
-            });
-        }
-        
-        // 부족 재료 알림
-        if (skippedIngredients.length > 0) {
-            const message = `⚠️ 일부 재료 재고가 부족하여 차감 없이 제작되었습니다:\n${skippedIngredients.join(', ')}`;
-            if (typeof toastr !== 'undefined') {
-                toastr.warning(message, '재료 부족', { timeOut: 5000 });
-            } else {
-                console.warn('SSTSSD:', message);
-            }
-        }
-        
         // 베이킹 이력 추가
         const historyEntry = {
             id: ++this.idCounter,
@@ -255,48 +214,8 @@ export class BakingModule {
         }
         
         const multiplier = recipe.multiplier || 1;
-        const skippedIngredients = [];
         
-        // 1. 재료 차감 (보유 시에만)
-        if (this.inventoryModule && recipe.ingredients && recipe.ingredients.length > 0) {
-            for (const ingredient of recipe.ingredients) {
-                const requiredQty = ingredient.qty * multiplier;
-                const item = this.inventoryModule.findIngredientFuzzy(ingredient.name);
-                
-                if (item && item.qty >= requiredQty) {
-                    this.inventoryModule.changeItemQty(
-                        ingredient.name,
-                        -requiredQty,
-                        `${recipe.name} 제작`,
-                        "baking"
-                    );
-                } else {
-                    skippedIngredients.push(ingredient.name);
-                }
-            }
-        }
-        
-        // 부족 재료 알림
-        if (skippedIngredients.length > 0) {
-            const message = `⚠️ 일부 재료 재고가 부족하여 차감 없이 제작되었습니다:\n${skippedIngredients.join(', ')}`;
-            if (typeof toastr !== 'undefined') {
-                toastr.warning(message, '재료 부족', { timeOut: 5000 });
-            } else {
-                console.warn('SSTSSD:', message);
-            }
-        }
-        
-        // 2. 완제품 재고 추가
-        if (this.inventoryModule) {
-            this.inventoryModule.addProduct({
-                name: recipe.name,
-                qty: recipe.yieldQty * multiplier,
-                unit: recipe.yieldUnit,
-                reason: `${recipe.name} ×${recipe.yieldQty * multiplier} 제작 완료`
-            });
-        }
-        
-        // 3. 이력 기록
+        // 1. 이력 기록
         const totalCost = recipe.ingredients ? 
             recipe.ingredients.reduce((sum, i) => sum + (i.price || 0), 0) : 0;
         
@@ -474,36 +393,8 @@ export class BakingModule {
         const isLastStep = stepIndex === recipe.steps.length - 1;
         
         if (isLastStep) {
-            // Complete baking: deduct ingredients (if available) and add product
+            // Complete baking: record history
             const multiplier = recipe.multiplier || 1;
-            
-            if (this.inventoryModule) {
-                // 재료 차감 (보유 시에만 - RP에서 이미 구매했을 수 있음)
-                if (recipe.ingredients && recipe.ingredients.length > 0) {
-                    for (const ingredient of recipe.ingredients) {
-                        const requiredQty = ingredient.qty * multiplier;
-                        const item = this.inventoryModule.findIngredientFuzzy(ingredient.name);
-                        
-                        // 보유량이 충분하면 차감, 아니면 스킵
-                        if (item && item.qty >= requiredQty) {
-                            this.inventoryModule.changeItemQty(
-                                ingredient.name,
-                                -requiredQty,
-                                `${recipe.name} ×${recipe.yieldQty * multiplier} 제작`,
-                                "baking"
-                            );
-                        }
-                    }
-                }
-                
-                // 완제품은 항상 추가
-                this.inventoryModule.addProduct({
-                    name: recipe.name,
-                    qty: recipe.yieldQty * multiplier,
-                    unit: recipe.yieldUnit,
-                    reason: `${recipe.name} ×${recipe.yieldQty * multiplier} 제작`
-                });
-            }
             
             // 베이킹 이력 추가
             const historyEntry = {
@@ -884,35 +775,7 @@ export class BakingModule {
         const location = locationList.location || locationList.store;
         const totalPrice = locationList.totalPrice;
         
-        // 1. 재고에 전부 추가
-        if (this.inventoryModule) {
-            locationList.items.forEach(item => {
-                const existingItem = this.inventoryModule.findIngredientFuzzy(item.name);
-                
-                if (existingItem) {
-                    // 기존 재료 수량 증가
-                    this.inventoryModule.updateItem(existingItem.id, {
-                        qty: existingItem.qty + item.qty,
-                        reason: `구매 (${location})`,
-                        source: "purchase"
-                    });
-                } else {
-                    // 새 재료 추가
-                    this.inventoryModule.addItem({
-                        name: item.name,
-                        qty: item.qty,
-                        unit: item.unit,
-                        category: this.inventoryModule.guessCategory(item.name),
-                        minStock: 0,
-                        type: "ingredient",
-                        reason: `구매 (${location})`,
-                        source: "purchase"
-                    });
-                }
-            });
-        }
-        
-        // 2. 잔고에서 차감 및 거래 내역 추가
+        // 1. 잔고에서 차감 및 거래 내역 추가
         if (this.balanceModule) {
             const linkedRecipeName = locationList.linkedRecipe ? 
                 (this.settings.baking.recipes.find(r => r.id === locationList.linkedRecipe)?.name || '') : '';
@@ -939,7 +802,7 @@ export class BakingModule {
                 this.settings.balance.living -= totalPrice;
             }
             
-            // 3. 거래 내역 추가
+            // 2. 거래 내역 추가
             if (!this.settings.balance.transactions) {
                 this.settings.balance.transactions = [];
             }
@@ -960,25 +823,7 @@ export class BakingModule {
             });
         }
         
-        // 4. QR 변수(inventory) 동기화
-        try {
-            const context = window.getContext?.() || (typeof SillyTavern !== 'undefined' ? SillyTavern.getContext() : null);
-            if (context?.executeSlashCommandsWithOptions && this.inventoryModule) {
-                const inventoryStr = this.inventoryModule.settings.inventory.items
-                    .filter(i => i.type === "ingredient")
-                    .map(i => `${i.name}:${i.qty}:${i.unit}`)
-                    .join(' ; ');
-                await context.executeSlashCommandsWithOptions(
-                    `/setvar key=inventory "${inventoryStr}"`
-                );
-                console.log('SSTSSD: QR inventory synced after purchase');
-            }
-        } catch (e) {
-            console.warn('SSTSSD: QR inventory sync failed', e);
-            // Graceful fallback - don't fail the purchase
-        }
-        
-        // 5. 구매 리스트 상태 업데이트 (삭제 대신 상태 변경)
+        // 2. 구매 리스트 상태 업데이트 (삭제 대신 상태 변경)
         locationList.status = "purchased";
         locationList.purchasedAt = this.formatDate(this.getRpDate());
         
@@ -1424,10 +1269,6 @@ export class BakingModule {
                     
                     // Re-render all related modules
                     this.render(container);
-                    const inventoryContainer = document.querySelector('.sstssd-module[data-module="inventory"]');
-                    if (inventoryContainer && this.inventoryModule) {
-                        this.inventoryModule.render(inventoryContainer);
-                    }
                 } else {
                     this.render(container);
                 }
@@ -1457,14 +1298,8 @@ export class BakingModule {
                             }
                         }
                         
-                        alert(`✅ ${recipe.name} 완료!\n완제품 ${recipe.yieldQty}${recipe.yieldUnit} 재고에 추가되었습니다.`);
+                        alert(`✅ ${recipe.name} 완료!`);
                         this.render(container);
-                        
-                        // 재고 모듈도 다시 렌더링
-                        const inventoryContainer = document.querySelector('.sstssd-module[data-module="inventory"]');
-                        if (inventoryContainer && this.inventoryModule) {
-                            this.inventoryModule.render(inventoryContainer);
-                        }
                     } else {
                         alert('완료 실패: ' + result.error);
                     }
@@ -1483,12 +1318,6 @@ export class BakingModule {
                     if (result.success) {
                         alert(`구매 완료! ${result.itemCount}개 항목, 총 ${this.formatCurrency(result.totalPrice)}`);
                         this.render(container);
-                        
-                        // 재고 모듈도 다시 렌더링
-                        const inventoryContainer = document.querySelector('.sstssd-module[data-module="inventory"]');
-                        if (inventoryContainer && this.inventoryModule) {
-                            this.inventoryModule.render(inventoryContainer);
-                        }
                         
                         // 잔고 모듈도 다시 렌더링
                         const balanceContainer = document.querySelector('.sstssd-module[data-module="balance"]');
@@ -1515,12 +1344,6 @@ export class BakingModule {
                     if (result.success) {
                         alert(`전체 구매 완료! ${result.totalItems}개 항목, 총 ${this.formatCurrency(result.totalPrice)}`);
                         this.render(container);
-                        
-                        // 재고 모듈도 다시 렌더링
-                        const inventoryContainer = document.querySelector('.sstssd-module[data-module="inventory"]');
-                        if (inventoryContainer && this.inventoryModule) {
-                            this.inventoryModule.render(inventoryContainer);
-                        }
                         
                         // 잔고 모듈도 다시 렌더링
                         const balanceContainer = document.querySelector('.sstssd-module[data-module="balance"]');
@@ -1891,17 +1714,13 @@ ingredients:
         const modal = document.createElement('div');
         modal.className = 'sstssd-modal';
         
-        // Check ingredient availability
+        // Check ingredient availability (always mark as needing to purchase)
         const ingredientStatus = plan.ingredients.map(ing => {
-            const item = this.inventoryModule?.findIngredientFuzzy(ing.name);
-            const available = item ? item.qty : 0;
-            const sufficient = available >= ing.qty;
-            
             return {
                 ...ing,
-                available,
-                sufficient,
-                status: sufficient ? 'ok' : (available > 0 ? 'low' : 'none')
+                available: 0,
+                sufficient: false,
+                status: 'none'
             };
         });
         
@@ -2288,12 +2107,8 @@ ingredients:
             
             recipe.ingredients.forEach(ing => {
                 const required = ing.qty * multiplier;
-                const item = this.inventoryModule?.findIngredientFuzzy(ing.name);
-                const available = item ? item.qty : 0;
-                const sufficient = available >= required;
-                const icon = sufficient ? '✅' : '❌';
                 
-                html += `<li>${icon} ${ing.name}: ${required}${ing.unit} (보유: ${available}${ing.unit})</li>`;
+                html += `<li>🛒 ${ing.name}: ${required}${ing.unit}</li>`;
             });
             
             html += '</ul>';
@@ -2326,16 +2141,11 @@ ingredients:
                     alert(`${recipeName} ×${finalQty}${recipe.yieldUnit} 제작 완료!`);
                 }
                 
-                // 모든 관련 모듈 다시 렌더링
+                // 베이킹 모듈 다시 렌더링
                 const bakingContainer = document.querySelector('.sstssd-module[data-module="baking"]');
-                const inventoryContainer = document.querySelector('.sstssd-module[data-module="inventory"]');
                 
                 if (bakingContainer) {
                     this.render(bakingContainer);
-                }
-                
-                if (inventoryContainer && this.inventoryModule) {
-                    this.inventoryModule.render(inventoryContainer);
                 }
             } else {
                 alert('베이킹 실패: ' + result.error);
@@ -2398,12 +2208,8 @@ ingredients:
             
             recipe.ingredients.forEach(ing => {
                 const required = ing.qty * multiplier;
-                const item = this.inventoryModule?.findIngredientFuzzy(ing.name);
-                const available = item ? item.qty : 0;
-                const sufficient = available >= required;
-                const icon = sufficient ? '✅' : '❌';
                 
-                html += `<li>${icon} ${ing.name}: ${required}${ing.unit} (보유: ${available}${ing.unit})</li>`;
+                html += `<li>🛒 ${ing.name}: ${required}${ing.unit}</li>`;
             });
             
             html += '</ul>';
