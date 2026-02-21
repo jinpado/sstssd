@@ -102,13 +102,19 @@ export class BakingModule {
             this.settings.baking = {
                 recipes: [],
                 bakingHistory: [],
-                shoppingList: []
+                shoppingList: [],
+                products: []
             };
         }
         
         // Initialize shopping list if not exists
         if (!this.settings.baking.shoppingList) {
             this.settings.baking.shoppingList = [];
+        }
+        
+        // Initialize products array if not exists
+        if (!this.settings.baking.products) {
+            this.settings.baking.products = [];
         }
         
         // Initialize ID counter from existing data
@@ -126,7 +132,8 @@ export class BakingModule {
                 ...(this.settings.baking.shoppingList || []).flatMap(list => [
                     list.id || 0,
                     ...(list.items || []).map(item => item.id || 0)
-                ])
+                ]),
+                ...(this.settings.baking.products || []).map(p => p.id || 0)
             ];
             
             if (allIds.length > 0) {
@@ -135,6 +142,101 @@ export class BakingModule {
         }
         
         return maxId;
+    }
+    
+    // ===== 완성품 관리 =====
+    // 완성품 추가 (같은 이름이면 수량 합산)
+    addProduct(name, quantity) {
+        if (!name || quantity <= 0) return;
+        const products = this.settings.baking.products;
+        const existing = products.find(p => p.name === name);
+        if (existing) {
+            existing.quantity += quantity;
+            existing.lastAddedAt = this.formatDate(this.getRpDate());
+        } else {
+            products.push({
+                id: ++this.idCounter,
+                name: name,
+                quantity: quantity,
+                shopQuantity: 0,
+                unitPrice: 0,
+                createdAt: this.formatDate(this.getRpDate()),
+                lastAddedAt: this.formatDate(this.getRpDate()),
+                memo: ''
+            });
+        }
+        this.saveCallback();
+    }
+    
+    // 개인 보유 차감
+    deductProduct(name, quantity) {
+        // Exact match first, then partial match
+        const product = this.settings.baking.products.find(p => p.name === name) ||
+            this.settings.baking.products.find(p => p.name.includes(name) || name.includes(p.name));
+        if (product) {
+            product.quantity = Math.max(0, product.quantity - quantity);
+            this.saveCallback();
+        }
+    }
+    
+    // 가게 진열 차감
+    deductShopProduct(name, quantity) {
+        // Exact match first, then partial match
+        const product = this.settings.baking.products.find(p => p.name === name) ||
+            this.settings.baking.products.find(p => p.name.includes(name) || name.includes(p.name));
+        if (product) {
+            product.shopQuantity = Math.max(0, product.shopQuantity - quantity);
+            this.saveCallback();
+        }
+    }
+    
+    // 개인 → 가게 진열
+    transferToShop(productId, quantity) {
+        const product = this.settings.baking.products.find(p => p.id === productId);
+        if (!product || quantity <= 0) return false;
+        const actual = Math.min(quantity, product.quantity);
+        product.quantity -= actual;
+        product.shopQuantity += actual;
+        this.saveCallback();
+        return true;
+    }
+    
+    // 가게 → 개인 회수
+    transferFromShop(productId, quantity) {
+        const product = this.settings.baking.products.find(p => p.id === productId);
+        if (!product || quantity <= 0) return false;
+        const actual = Math.min(quantity, product.shopQuantity);
+        product.shopQuantity -= actual;
+        product.quantity += actual;
+        this.saveCallback();
+        return true;
+    }
+    
+    // 선물 (개인 보유에서 차감)
+    giftProduct(productId, quantity, recipient) {
+        const product = this.settings.baking.products.find(p => p.id === productId);
+        if (!product || quantity <= 0) return false;
+        const actual = Math.min(quantity, product.quantity);
+        product.quantity -= actual;
+        if (!product.giftLog) product.giftLog = [];
+        product.giftLog.push({
+            date: this.formatDate(this.getRpDate()),
+            quantity: actual,
+            recipient: recipient || '?'
+        });
+        this.saveCallback();
+        return true;
+    }
+    
+    // 완성품 삭제
+    deleteProduct(productId) {
+        const index = this.settings.baking.products.findIndex(p => p.id === productId);
+        if (index !== -1) {
+            this.settings.baking.products.splice(index, 1);
+            this.saveCallback();
+            return true;
+        }
+        return false;
     }
     
     // ===== 레시피 관리 =====
@@ -239,6 +341,9 @@ export class BakingModule {
         // 4. 레시피 상태 변경: completed로 변경 (완료된 레시피는 UI에서 자동으로 숨김 처리)
         recipe.status = 'completed';
         recipe.completedAt = this.formatDate(this.getRpDate());
+        
+        // 5. 완성품 추가 (개인 보유)
+        this.addProduct(recipe.name, recipe.yieldQty * multiplier);
         
         this.saveCallback();
         
@@ -419,6 +524,9 @@ export class BakingModule {
             recipe.multiplier = null;
             recipe.startedAt = null;
             
+            // 완성품 추가 (개인 보유)
+            this.addProduct(recipe.name, recipe.yieldQty * multiplier);
+            
             this.saveCallback();
             
             // Notify completion
@@ -587,8 +695,11 @@ export class BakingModule {
                 this.completeStep(recipe.id, lastStepIndex);
             } else {
                 // No steps defined, manually complete
+                const multiplier = recipe.multiplier || 1;
                 recipe.status = 'completed';
                 recipe.completedAt = this.formatDate(this.getRpDate());
+                // 완성품 추가 (개인 보유)
+                this.addProduct(recipe.name, recipe.yieldQty * multiplier);
                 this.saveCallback();
             }
         } else {
@@ -930,6 +1041,9 @@ export class BakingModule {
                 <!-- 구매 리스트 -->
                 ${this.renderShoppingList()}
                 
+                <!-- 완성품 현황 -->
+                ${this.renderProducts()}
+                
                 <!-- 이전 베이킹 이력 -->
                 ${olderHistory.length > 0 ? `
                     <div class="sstssd-section">
@@ -1166,6 +1280,67 @@ export class BakingModule {
                     <button class="sstssd-btn sstssd-btn-xs" data-action="edit-shopping-item" data-location-id="${locationId}" data-item-id="${item.id}">✏️</button>
                     <button class="sstssd-btn sstssd-btn-xs" data-action="delete-shopping-item" data-location-id="${locationId}" data-item-id="${item.id}">🗑</button>
                 </div>
+            </div>
+        `;
+    }
+    
+    // ===== 완성품 UI 렌더링 =====
+    renderProducts() {
+        const products = this.settings.baking.products || [];
+        const shopModeEnabled = this.settings.balance?.shopMode?.enabled || false;
+        
+        const personalProducts = products.filter(p => p.quantity > 0);
+        const shopProducts = products.filter(p => p.shopQuantity > 0);
+        
+        if (products.length === 0) {
+            return `
+                <div class="sstssd-section sstssd-products-section">
+                    <div class="sstssd-section-title">🧁 완성품 보유 현황</div>
+                    <div class="sstssd-empty">완성품이 없습니다</div>
+                    <button class="sstssd-btn sstssd-btn-add" data-action="add-product">+ 수동 추가</button>
+                </div>
+            `;
+        }
+        
+        return `
+            <div class="sstssd-section sstssd-products-section">
+                <div class="sstssd-section-title">🧁 완성품 보유 현황</div>
+                
+                <!-- 📦 개인 보유 -->
+                <div class="sstssd-products-group">
+                    <div class="sstssd-products-group-title">📦 내 완성품</div>
+                    ${personalProducts.length > 0 ? personalProducts.map(p => `
+                        <div class="sstssd-product-item" data-product-id="${p.id}">
+                            <span class="sstssd-product-name">${this.escapeHtml(p.name)}</span>
+                            <span class="sstssd-product-qty">×${p.quantity}</span>
+                            <div class="sstssd-product-actions">
+                                ${shopModeEnabled ? `
+                                    <button class="sstssd-btn sstssd-btn-xs" data-action="transfer-to-shop" data-product-id="${p.id}" title="가게로 진열">🏪</button>
+                                ` : ''}
+                                <button class="sstssd-btn sstssd-btn-xs" data-action="gift-product" data-product-id="${p.id}" title="선물">🎁</button>
+                                <button class="sstssd-btn sstssd-btn-xs" data-action="edit-product" data-product-id="${p.id}" title="수정">✏️</button>
+                                <button class="sstssd-btn sstssd-btn-xs" data-action="delete-product" data-product-id="${p.id}" title="삭제">🗑</button>
+                            </div>
+                        </div>
+                    `).join('') : '<div class="sstssd-empty sstssd-products-empty">없음</div>'}
+                    <button class="sstssd-btn sstssd-btn-add" data-action="add-product">+ 수동 추가</button>
+                </div>
+                
+                <!-- 🏪 가게 진열 -->
+                ${shopModeEnabled ? `
+                    <div class="sstssd-products-group">
+                        <div class="sstssd-products-group-title">🏪 가게 진열품</div>
+                        ${shopProducts.length > 0 ? shopProducts.map(p => `
+                            <div class="sstssd-product-item sstssd-product-shop" data-product-id="${p.id}">
+                                <span class="sstssd-product-name">${this.escapeHtml(p.name)}</span>
+                                <span class="sstssd-product-qty">×${p.shopQuantity}</span>
+                                <div class="sstssd-product-actions">
+                                    <button class="sstssd-btn sstssd-btn-xs" data-action="transfer-from-shop" data-product-id="${p.id}" title="회수">📦</button>
+                                </div>
+                            </div>
+                        `).join('') : '<div class="sstssd-empty sstssd-products-empty">없음</div>'}
+                    </div>
+                ` : ''}
             </div>
         `;
     }
@@ -1413,6 +1588,66 @@ export class BakingModule {
         if (addShoppingBtn) {
             addShoppingBtn.addEventListener('click', () => this.showAddShoppingItemModal(container));
         }
+        
+        // ===== 완성품 이벤트 =====
+        // 완성품 수동 추가
+        const addProductBtns = container.querySelectorAll('[data-action="add-product"]');
+        addProductBtns.forEach(btn => {
+            btn.addEventListener('click', () => this.showAddProductModal(container));
+        });
+        
+        // 완성품 수정
+        const editProductBtns = container.querySelectorAll('[data-action="edit-product"]');
+        editProductBtns.forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const productId = parseInt(btn.dataset.productId);
+                this.showEditProductModal(productId, container);
+            });
+        });
+        
+        // 완성품 삭제
+        const deleteProductBtns = container.querySelectorAll('[data-action="delete-product"]');
+        deleteProductBtns.forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const productId = parseInt(btn.dataset.productId);
+                if (confirm('완성품을 삭제하시겠습니까?')) {
+                    this.deleteProduct(productId);
+                    this.render(container);
+                }
+            });
+        });
+        
+        // 가게로 진열
+        const transferToShopBtns = container.querySelectorAll('[data-action="transfer-to-shop"]');
+        transferToShopBtns.forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const productId = parseInt(btn.dataset.productId);
+                this.showTransferToShopModal(productId, container);
+            });
+        });
+        
+        // 가게에서 회수
+        const transferFromShopBtns = container.querySelectorAll('[data-action="transfer-from-shop"]');
+        transferFromShopBtns.forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const productId = parseInt(btn.dataset.productId);
+                this.showTransferFromShopModal(productId, container);
+            });
+        });
+        
+        // 선물
+        const giftProductBtns = container.querySelectorAll('[data-action="gift-product"]');
+        giftProductBtns.forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const productId = parseInt(btn.dataset.productId);
+                this.showGiftProductModal(productId, container);
+            });
+        });
     }
     
     // ===== 모달 =====
@@ -2444,6 +2679,299 @@ ingredients:
                 price: parseInt(formData.get('price'))
             });
             
+            modal.remove();
+            this.render(container);
+        });
+        
+        cancelBtn.addEventListener('click', () => modal.remove());
+        overlay.addEventListener('click', () => modal.remove());
+    }
+    
+    // ===== 완성품 모달 =====
+    // 완성품 수동 추가 모달
+    showAddProductModal(container) {
+        const modal = document.createElement('div');
+        modal.className = 'sstssd-modal';
+        modal.innerHTML = `
+            <div class="sstssd-modal-overlay"></div>
+            <div class="sstssd-modal-content">
+                <h3>🧁 완성품 추가</h3>
+                <form id="sstssd-add-product-form">
+                    <div class="sstssd-form-group">
+                        <label>제품명</label>
+                        <input type="text" name="name" class="sstssd-input" required placeholder="예: 소금쿠키">
+                    </div>
+                    <div class="sstssd-form-group">
+                        <label>개인 보유 수량</label>
+                        <input type="number" name="quantity" class="sstssd-input" value="1" min="0" required>
+                    </div>
+                    <div class="sstssd-form-group">
+                        <label>가게 진열 수량</label>
+                        <input type="number" name="shopQuantity" class="sstssd-input" value="0" min="0">
+                    </div>
+                    <div class="sstssd-form-group">
+                        <label>개당 가격 (원, 선택)</label>
+                        <input type="number" name="unitPrice" class="sstssd-input" value="0" min="0">
+                    </div>
+                    <div class="sstssd-form-group">
+                        <label>메모 (선택)</label>
+                        <input type="text" name="memo" class="sstssd-input">
+                    </div>
+                    <div class="sstssd-form-actions">
+                        <button type="button" class="sstssd-btn sstssd-btn-cancel">취소</button>
+                        <button type="submit" class="sstssd-btn sstssd-btn-primary">추가</button>
+                    </div>
+                </form>
+            </div>
+        `;
+        document.body.appendChild(modal);
+        
+        const form = modal.querySelector('#sstssd-add-product-form');
+        const cancelBtn = modal.querySelector('.sstssd-btn-cancel');
+        const overlay = modal.querySelector('.sstssd-modal-overlay');
+        
+        form.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const formData = new FormData(form);
+            const name = formData.get('name').trim();
+            const quantity = parseInt(formData.get('quantity')) || 0;
+            const shopQuantity = parseInt(formData.get('shopQuantity')) || 0;
+            const unitPrice = parseInt(formData.get('unitPrice')) || 0;
+            const memo = formData.get('memo') || '';
+            
+            if (!name) {
+                alert('제품명을 입력해주세요.');
+                return;
+            }
+            
+            const existing = this.settings.baking.products.find(p => p.name === name);
+            if (existing) {
+                existing.quantity += quantity;
+                existing.shopQuantity += shopQuantity;
+                if (unitPrice) existing.unitPrice = unitPrice;
+                if (memo) existing.memo = memo;
+                existing.lastAddedAt = this.formatDate(this.getRpDate());
+                this.saveCallback();
+            } else {
+                this.settings.baking.products.push({
+                    id: ++this.idCounter,
+                    name: name,
+                    quantity: quantity,
+                    shopQuantity: shopQuantity,
+                    unitPrice: unitPrice,
+                    createdAt: this.formatDate(this.getRpDate()),
+                    lastAddedAt: this.formatDate(this.getRpDate()),
+                    memo: memo
+                });
+                this.saveCallback();
+            }
+            
+            modal.remove();
+            this.render(container);
+        });
+        
+        cancelBtn.addEventListener('click', () => modal.remove());
+        overlay.addEventListener('click', () => modal.remove());
+    }
+    
+    // 완성품 수정 모달
+    showEditProductModal(productId, container) {
+        const product = this.settings.baking.products.find(p => p.id === productId);
+        if (!product) return;
+        
+        const modal = document.createElement('div');
+        modal.className = 'sstssd-modal';
+        modal.innerHTML = `
+            <div class="sstssd-modal-overlay"></div>
+            <div class="sstssd-modal-content">
+                <h3>✏️ 완성품 수정</h3>
+                <form id="sstssd-edit-product-form">
+                    <div class="sstssd-form-group">
+                        <label>제품명</label>
+                        <input type="text" name="name" class="sstssd-input" value="${this.escapeHtml(product.name)}" required>
+                    </div>
+                    <div class="sstssd-form-group">
+                        <label>개인 보유 수량</label>
+                        <input type="number" name="quantity" class="sstssd-input" value="${product.quantity}" min="0" required>
+                    </div>
+                    <div class="sstssd-form-group">
+                        <label>가게 진열 수량</label>
+                        <input type="number" name="shopQuantity" class="sstssd-input" value="${product.shopQuantity}" min="0">
+                    </div>
+                    <div class="sstssd-form-group">
+                        <label>개당 가격 (원)</label>
+                        <input type="number" name="unitPrice" class="sstssd-input" value="${product.unitPrice || 0}" min="0">
+                    </div>
+                    <div class="sstssd-form-group">
+                        <label>메모</label>
+                        <input type="text" name="memo" class="sstssd-input" value="${this.escapeHtml(product.memo || '')}">
+                    </div>
+                    <div class="sstssd-form-actions">
+                        <button type="button" class="sstssd-btn sstssd-btn-cancel">취소</button>
+                        <button type="submit" class="sstssd-btn sstssd-btn-primary">저장</button>
+                    </div>
+                </form>
+            </div>
+        `;
+        document.body.appendChild(modal);
+        
+        const form = modal.querySelector('#sstssd-edit-product-form');
+        const cancelBtn = modal.querySelector('.sstssd-btn-cancel');
+        const overlay = modal.querySelector('.sstssd-modal-overlay');
+        
+        form.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const formData = new FormData(form);
+            product.name = formData.get('name').trim();
+            product.quantity = parseInt(formData.get('quantity')) || 0;
+            product.shopQuantity = parseInt(formData.get('shopQuantity')) || 0;
+            product.unitPrice = parseInt(formData.get('unitPrice')) || 0;
+            product.memo = formData.get('memo') || '';
+            this.saveCallback();
+            modal.remove();
+            this.render(container);
+        });
+        
+        cancelBtn.addEventListener('click', () => modal.remove());
+        overlay.addEventListener('click', () => modal.remove());
+    }
+    
+    // 가게로 진열 모달
+    showTransferToShopModal(productId, container) {
+        const product = this.settings.baking.products.find(p => p.id === productId);
+        if (!product) return;
+        
+        const modal = document.createElement('div');
+        modal.className = 'sstssd-modal';
+        modal.innerHTML = `
+            <div class="sstssd-modal-overlay"></div>
+            <div class="sstssd-modal-content">
+                <h3>🏪 가게로 진열</h3>
+                <p>${this.escapeHtml(product.name)} (개인 보유: ${product.quantity}개)</p>
+                <form id="sstssd-transfer-shop-form">
+                    <div class="sstssd-form-group">
+                        <label>진열할 수량 (최대 ${product.quantity}개)</label>
+                        <input type="number" name="quantity" class="sstssd-input" value="1" min="1" max="${product.quantity}" required>
+                    </div>
+                    <div class="sstssd-form-actions">
+                        <button type="button" class="sstssd-btn sstssd-btn-cancel">취소</button>
+                        <button type="submit" class="sstssd-btn sstssd-btn-primary">진열</button>
+                    </div>
+                </form>
+            </div>
+        `;
+        document.body.appendChild(modal);
+        
+        const form = modal.querySelector('#sstssd-transfer-shop-form');
+        const cancelBtn = modal.querySelector('.sstssd-btn-cancel');
+        const overlay = modal.querySelector('.sstssd-modal-overlay');
+        
+        form.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const qty = parseInt(new FormData(form).get('quantity')) || 0;
+            if (qty > product.quantity) {
+                alert(`보유 수량(${product.quantity}개)보다 많이 진열할 수 없습니다.`);
+                return;
+            }
+            this.transferToShop(productId, qty);
+            modal.remove();
+            this.render(container);
+        });
+        
+        cancelBtn.addEventListener('click', () => modal.remove());
+        overlay.addEventListener('click', () => modal.remove());
+    }
+    
+    // 가게에서 회수 모달
+    showTransferFromShopModal(productId, container) {
+        const product = this.settings.baking.products.find(p => p.id === productId);
+        if (!product) return;
+        
+        const modal = document.createElement('div');
+        modal.className = 'sstssd-modal';
+        modal.innerHTML = `
+            <div class="sstssd-modal-overlay"></div>
+            <div class="sstssd-modal-content">
+                <h3>📦 회수</h3>
+                <p>${this.escapeHtml(product.name)} (가게 진열: ${product.shopQuantity}개)</p>
+                <form id="sstssd-transfer-back-form">
+                    <div class="sstssd-form-group">
+                        <label>회수할 수량 (최대 ${product.shopQuantity}개)</label>
+                        <input type="number" name="quantity" class="sstssd-input" value="1" min="1" max="${product.shopQuantity}" required>
+                    </div>
+                    <div class="sstssd-form-actions">
+                        <button type="button" class="sstssd-btn sstssd-btn-cancel">취소</button>
+                        <button type="submit" class="sstssd-btn sstssd-btn-primary">회수</button>
+                    </div>
+                </form>
+            </div>
+        `;
+        document.body.appendChild(modal);
+        
+        const form = modal.querySelector('#sstssd-transfer-back-form');
+        const cancelBtn = modal.querySelector('.sstssd-btn-cancel');
+        const overlay = modal.querySelector('.sstssd-modal-overlay');
+        
+        form.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const qty = parseInt(new FormData(form).get('quantity')) || 0;
+            if (qty > product.shopQuantity) {
+                alert(`가게 진열 수량(${product.shopQuantity}개)보다 많이 회수할 수 없습니다.`);
+                return;
+            }
+            this.transferFromShop(productId, qty);
+            modal.remove();
+            this.render(container);
+        });
+        
+        cancelBtn.addEventListener('click', () => modal.remove());
+        overlay.addEventListener('click', () => modal.remove());
+    }
+    
+    // 선물 모달
+    showGiftProductModal(productId, container) {
+        const product = this.settings.baking.products.find(p => p.id === productId);
+        if (!product) return;
+        
+        const modal = document.createElement('div');
+        modal.className = 'sstssd-modal';
+        modal.innerHTML = `
+            <div class="sstssd-modal-overlay"></div>
+            <div class="sstssd-modal-content">
+                <h3>🎁 선물</h3>
+                <p>${this.escapeHtml(product.name)} (개인 보유: ${product.quantity}개)</p>
+                <form id="sstssd-gift-form">
+                    <div class="sstssd-form-group">
+                        <label>선물할 수량 (최대 ${product.quantity}개)</label>
+                        <input type="number" name="quantity" class="sstssd-input" value="1" min="1" max="${product.quantity}" required>
+                    </div>
+                    <div class="sstssd-form-group">
+                        <label>받는 사람</label>
+                        <input type="text" name="recipient" class="sstssd-input" placeholder="이름 또는 닉네임">
+                    </div>
+                    <div class="sstssd-form-actions">
+                        <button type="button" class="sstssd-btn sstssd-btn-cancel">취소</button>
+                        <button type="submit" class="sstssd-btn sstssd-btn-primary">선물</button>
+                    </div>
+                </form>
+            </div>
+        `;
+        document.body.appendChild(modal);
+        
+        const form = modal.querySelector('#sstssd-gift-form');
+        const cancelBtn = modal.querySelector('.sstssd-btn-cancel');
+        const overlay = modal.querySelector('.sstssd-modal-overlay');
+        
+        form.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const formData = new FormData(form);
+            const qty = parseInt(formData.get('quantity')) || 0;
+            const recipient = formData.get('recipient').trim() || '?';
+            if (qty > product.quantity) {
+                alert(`보유 수량(${product.quantity}개)보다 많이 선물할 수 없습니다.`);
+                return;
+            }
+            this.giftProduct(productId, qty, recipient);
             modal.remove();
             this.render(container);
         });

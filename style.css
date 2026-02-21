@@ -2685,3 +2685,65 @@ textarea.sstssd-input {
     transform: translateY(-1px);
     box-shadow: 0 4px 8px rgba(34, 197, 94, 0.3);
 }
+
+/* ===== 완성품 보유 현황 ===== */
+.sstssd-products-section {
+    margin-top: 8px;
+}
+
+.sstssd-products-group {
+    margin-bottom: 10px;
+}
+
+.sstssd-products-group-title {
+    font-size: 12px;
+    font-weight: 600;
+    color: #a78bfa;
+    margin-bottom: 6px;
+    padding-bottom: 4px;
+    border-bottom: 1px solid rgba(167, 139, 250, 0.2);
+}
+
+.sstssd-product-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 8px;
+    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.04);
+    margin-bottom: 4px;
+}
+
+.sstssd-product-item.sstssd-product-shop {
+    background: rgba(251, 191, 36, 0.06);
+    border: 1px solid rgba(251, 191, 36, 0.2);
+}
+
+.sstssd-product-name {
+    flex: 1;
+    color: #e0e0e0;
+    font-size: 13px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.sstssd-product-qty {
+    color: #a78bfa;
+    font-size: 13px;
+    font-weight: 600;
+    min-width: 32px;
+    text-align: right;
+}
+
+.sstssd-product-actions {
+    display: flex;
+    gap: 3px;
+    flex-shrink: 0;
+}
+
+.sstssd-products-empty {
+    font-size: 12px;
+    color: #6b7280;
+    padding: 4px 0;
+}

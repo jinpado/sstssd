@@ -31,6 +31,7 @@ export class InstagramModule {
         this.getRpDate = getRpDate;
         this.balanceModule = balanceModule;
         this.todoModule = todoModule;
+        this.bakingModule = null;  // Set after initialization via index.js
         this.moduleName = 'instagram';
         this.idCounter = Date.now();
         
@@ -467,6 +468,20 @@ export class InstagramModule {
                 
                 if (typeof window.sstsdUpdateSummary === 'function') {
                     window.sstsdUpdateSummary();
+                }
+            }
+            
+            // 완성품 개인 보유에서 차감 (주문 설명에서 제품명 추출 시도)
+            if (this.bakingModule) {
+                const descriptionText = order.description || '';
+                const products = this.bakingModule.settings?.baking?.products || [];
+                // Try exact name match first, then partial match
+                const matchedProduct = products.find(p => descriptionText.includes(p.name)) ||
+                    products.find(p => p.name.split(/\s/)[0] && descriptionText.includes(p.name.split(/\s/)[0]));
+                if (matchedProduct) {
+                    const qtyMatch = descriptionText.match(/(\d+)\s*개/);
+                    const qty = qtyMatch ? parseInt(qtyMatch[1]) : 1;
+                    this.bakingModule.deductProduct(matchedProduct.name, qty);
                 }
             }
             
