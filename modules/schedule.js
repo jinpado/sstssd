@@ -169,18 +169,21 @@ export class ScheduleModule {
                 appointments: []
             };
         }
-        // Migration: if semesters doesn't exist, initialize empty object
+        // Migration: if semesters doesn't exist, initialize from defaults
         if (!this.settings.schedule.semesters) {
-            this.settings.schedule.semesters = {};
-        }
-        // Restore any missing semester data from defaults (fixes blank timetable bug)
-        for (const [key, value] of Object.entries(ScheduleModule.DEFAULT_SEMESTERS)) {
-            if (!this.settings.schedule.semesters[key]) {
-                this.settings.schedule.semesters[key] = JSON.parse(JSON.stringify(value));
+            this.settings.schedule.semesters = JSON.parse(JSON.stringify(ScheduleModule.DEFAULT_SEMESTERS));
+        } else {
+            // Restore any missing semester keys from defaults
+            for (const [key, value] of Object.entries(ScheduleModule.DEFAULT_SEMESTERS)) {
+                if (!this.settings.schedule.semesters[key]) {
+                    this.settings.schedule.semesters[key] = JSON.parse(JSON.stringify(value));
+                }
             }
         }
-        // Only initialize currentSemester if not already saved (preserve user's selected semester)
-        this.settings.schedule.currentSemester ??= '';
+        // If currentSemester is empty/falsy (includes '' from old versions), default to '1-1'
+        if (!this.settings.schedule.currentSemester) {
+            this.settings.schedule.currentSemester = '1-1';
+        }
         // Sync timetable to current semester (null when no semester selected)
         this.settings.schedule.timetable = this.settings.schedule.currentSemester
             ? this.settings.schedule.semesters[this.settings.schedule.currentSemester]
@@ -430,11 +433,24 @@ export class ScheduleModule {
 
     // 학기 변경
     setSemester(semesterKey) {
-        if (semesterKey && !this.settings.schedule.semesters?.[semesterKey]) return;
+        if (!semesterKey) {
+            // 학기 선택 해제
+            this.settings.schedule.currentSemester = '';
+            this.settings.schedule.timetable = null;
+            this.saveCallback();
+            return;
+        }
+        // 해당 학기 데이터가 없으면 기본값에서 복구
+        if (!this.settings.schedule.semesters[semesterKey]) {
+            if (ScheduleModule.DEFAULT_SEMESTERS[semesterKey]) {
+                this.settings.schedule.semesters[semesterKey] =
+                    JSON.parse(JSON.stringify(ScheduleModule.DEFAULT_SEMESTERS[semesterKey]));
+            } else {
+                return; // 존재하지 않는 학기
+            }
+        }
         this.settings.schedule.currentSemester = semesterKey;
-        this.settings.schedule.timetable = semesterKey
-            ? this.settings.schedule.semesters[semesterKey]
-            : null;
+        this.settings.schedule.timetable = this.settings.schedule.semesters[semesterKey];
         this.saveCallback();
     }
 
