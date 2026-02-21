@@ -173,8 +173,8 @@ export class ScheduleModule {
         if (!this.settings.schedule.semesters) {
             this.settings.schedule.semesters = JSON.parse(JSON.stringify(ScheduleModule.DEFAULT_SEMESTERS));
         }
-        // Always reset currentSemester to '' so users must select explicitly
-        this.settings.schedule.currentSemester = '';
+        // Only initialize currentSemester if not already saved (preserve user's selected semester)
+        this.settings.schedule.currentSemester ??= '';
         // Sync timetable to current semester (null when no semester selected)
         this.settings.schedule.timetable = this.settings.schedule.currentSemester
             ? this.settings.schedule.semesters[this.settings.schedule.currentSemester]
