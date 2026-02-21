@@ -142,6 +142,10 @@ export class ShopModule {
         };
         
         this.settings.shop.sales.push(newSale);
+        // Trim sales history to prevent save file bloat (keep recent 300)
+        if (this.settings.shop.sales.length > 300) {
+            this.settings.shop.sales = this.settings.shop.sales.slice(-300);
+        }
         
         // Update inventory (decrease sale product stock)
         if (this.inventoryModule) {
