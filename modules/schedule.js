@@ -2,183 +2,152 @@
 export class ScheduleModule {
     static DAYS = ['일', '월', '화', '수', '목', '금', '토'];
 
-    // 호텔조리디저트학과 4년 8학기 기본 시간표 데이터
+    // 호텔디저트학과 4년 8학기 기본 시간표 데이터
     static DEFAULT_SEMESTERS = {
         '1-1': {
             '월': [
-                { id: 1, startTime: '09:00', endTime: '11:50', subject: '기초조리실습', location: '조리실습실1' },
+                { id: 1, startTime: '09:00', endTime: '11:50', subject: '기초제빵실습', location: '제과제빵실습실' },
                 { id: 2, startTime: '13:00', endTime: '14:50', subject: '식품학개론', location: '강의실201' }
             ],
             '화': [
-                { id: 3, startTime: '09:00', endTime: '11:50', subject: '기초제빵실습', location: '제과제빵실습실' },
-                { id: 4, startTime: '13:00', endTime: '13:50', subject: '외식산업개론', location: '강의실202' }
+                { id: 3, startTime: '10:00', endTime: '12:50', subject: '기초제과실습', location: '제과제빵실습실' }
             ],
-            '수': [
-                { id: 5, startTime: '09:00', endTime: '11:50', subject: '기초조리실습', location: '조리실습실1' },
-                { id: 6, startTime: '14:00', endTime: '15:50', subject: '식품위생학', location: '강의실201' }
-            ],
+            '수': [],
             '목': [
-                { id: 7, startTime: '09:00', endTime: '11:50', subject: '기초제과실습', location: '제과제빵실습실' },
-                { id: 8, startTime: '13:00', endTime: '14:50', subject: '조리원리', location: '강의실203' }
+                { id: 4, startTime: '09:00', endTime: '10:50', subject: '식품영양학', location: '강의실201' },
+                { id: 5, startTime: '13:00', endTime: '15:50', subject: '디저트플레이팅기초', location: '디저트실습실' }
             ],
             '금': [
-                { id: 9, startTime: '09:00', endTime: '10:50', subject: '식품영양학', location: '강의실201' },
-                { id: 10, startTime: '11:00', endTime: '12:50', subject: '호텔관광개론', location: '강의실202' }
+                { id: 6, startTime: '14:00', endTime: '15:50', subject: '식품위생학', location: '강의실202' },
+                { id: 7, startTime: '16:00', endTime: '17:50', subject: '커피바리스타기초', location: '카페실습실' }
             ],
             '토': [], '일': []
         },
         '1-2': {
             '월': [
-                { id: 11, startTime: '09:00', endTime: '11:50', subject: '한식조리실습', location: '조리실습실1' },
-                { id: 12, startTime: '13:00', endTime: '14:50', subject: '식품가공학', location: '강의실201' }
+                { id: 8, startTime: '09:00', endTime: '11:50', subject: '제빵실습Ⅰ', location: '제과제빵실습실' }
             ],
             '화': [
-                { id: 13, startTime: '09:00', endTime: '11:50', subject: '제빵실습Ⅰ', location: '제과제빵실습실' },
-                { id: 14, startTime: '14:00', endTime: '15:50', subject: '메뉴관리론', location: '강의실202' }
+                { id: 9, startTime: '10:00', endTime: '11:50', subject: '식품가공학', location: '강의실201' },
+                { id: 10, startTime: '13:00', endTime: '15:50', subject: '제과실습Ⅰ', location: '제과제빵실습실' }
             ],
             '수': [
-                { id: 15, startTime: '09:00', endTime: '11:50', subject: '양식조리실습', location: '조리실습실2' },
-                { id: 16, startTime: '13:00', endTime: '14:50', subject: '식품미생물학', location: '강의실203' }
+                { id: 11, startTime: '09:00', endTime: '10:50', subject: '식품미생물학', location: '강의실203' },
+                { id: 12, startTime: '14:00', endTime: '16:50', subject: '카페디저트실습', location: '카페실습실' }
             ],
             '목': [
-                { id: 17, startTime: '09:00', endTime: '11:50', subject: '제과실습Ⅰ', location: '제과제빵실습실' },
-                { id: 18, startTime: '14:00', endTime: '15:50', subject: '조리과학', location: '강의실201' }
+                { id: 13, startTime: '11:00', endTime: '12:50', subject: '메뉴관리론', location: '강의실202' }
             ],
-            '금': [
-                { id: 19, startTime: '09:00', endTime: '10:50', subject: '커피바리스타기초', location: '카페실습실' },
-                { id: 20, startTime: '11:00', endTime: '12:50', subject: '외식경영학', location: '강의실202' }
-            ],
+            '금': [],
             '토': [], '일': []
         },
         '2-1': {
             '월': [
-                { id: 21, startTime: '09:00', endTime: '11:50', subject: '고급제빵실습', location: '제과제빵실습실' },
-                { id: 22, startTime: '13:00', endTime: '14:50', subject: '식품화학', location: '강의실301' }
+                { id: 14, startTime: '09:00', endTime: '11:50', subject: '고급제빵실습', location: '제과제빵실습실' },
+                { id: 15, startTime: '14:00', endTime: '15:50', subject: '식품화학', location: '강의실301' }
             ],
             '화': [
-                { id: 23, startTime: '09:00', endTime: '11:50', subject: '일식조리실습', location: '조리실습실2' },
-                { id: 24, startTime: '14:00', endTime: '15:50', subject: '원가관리', location: '강의실302' }
+                { id: 16, startTime: '13:00', endTime: '15:50', subject: '케이크데코레이션', location: '디저트실습실' }
             ],
             '수': [
-                { id: 25, startTime: '09:00', endTime: '11:50', subject: '디저트플레이팅', location: '디저트실습실' },
-                { id: 26, startTime: '13:00', endTime: '14:50', subject: '호텔식음료관리', location: '강의실301' }
+                { id: 17, startTime: '09:00', endTime: '10:50', subject: '원가관리', location: '강의실302' },
+                { id: 18, startTime: '11:00', endTime: '13:50', subject: '고급제과실습', location: '제과제빵실습실' }
             ],
-            '목': [
-                { id: 27, startTime: '09:00', endTime: '11:50', subject: '고급제과실습', location: '제과제빵실습실' },
-                { id: 28, startTime: '14:00', endTime: '15:50', subject: '영양학', location: '강의실303' }
-            ],
+            '목': [],
             '금': [
-                { id: 29, startTime: '09:00', endTime: '11:50', subject: '카페디저트실습', location: '카페실습실' },
-                { id: 30, startTime: '13:00', endTime: '13:50', subject: '식품관능검사', location: '강의실301' }
+                { id: 19, startTime: '10:00', endTime: '12:50', subject: '바리스타실습', location: '카페실습실' },
+                { id: 20, startTime: '14:00', endTime: '15:50', subject: '제과제빵재료학', location: '강의실301' }
             ],
             '토': [], '일': []
         },
         '2-2': {
             '월': [
-                { id: 31, startTime: '09:00', endTime: '11:50', subject: '초콜릿공예', location: '디저트실습실' },
-                { id: 32, startTime: '13:00', endTime: '14:50', subject: '위생법규', location: '강의실301' }
+                { id: 21, startTime: '09:00', endTime: '11:50', subject: '초콜릿공예', location: '디저트실습실' }
             ],
-            '화': [
-                { id: 33, startTime: '09:00', endTime: '11:50', subject: '중식조리실습', location: '조리실습실2' },
-                { id: 34, startTime: '14:00', endTime: '15:50', subject: '호텔연회관리', location: '강의실302' }
-            ],
+            '화': [],
             '수': [
-                { id: 35, startTime: '09:00', endTime: '11:50', subject: '케이크데코레이션', location: '제과제빵실습실' },
-                { id: 36, startTime: '13:00', endTime: '14:50', subject: 'HACCP실무', location: '강의실303' }
+                { id: 22, startTime: '09:00', endTime: '10:50', subject: '위생법규', location: '강의실301' },
+                { id: 23, startTime: '11:00', endTime: '12:50', subject: 'HACCP실무', location: '강의실303' }
             ],
             '목': [
-                { id: 37, startTime: '09:00', endTime: '10:50', subject: '제과제빵재료학', location: '강의실301' },
-                { id: 38, startTime: '11:00', endTime: '13:50', subject: '푸드스타일링', location: '디저트실습실' }
+                { id: 24, startTime: '10:00', endTime: '12:50', subject: '푸드스타일링', location: '디저트실습실' },
+                { id: 25, startTime: '14:00', endTime: '15:50', subject: '제과제빵경영학', location: '강의실301' }
             ],
             '금': [
-                { id: 39, startTime: '09:00', endTime: '11:50', subject: '바리스타실습', location: '카페실습실' },
-                { id: 40, startTime: '13:00', endTime: '14:50', subject: '외식마케팅', location: '강의실302' }
+                { id: 26, startTime: '09:00', endTime: '11:50', subject: '아트브레드실습', location: '제과제빵실습실' },
+                { id: 27, startTime: '13:00', endTime: '14:50', subject: '식품관능검사', location: '강의실301' }
             ],
             '토': [], '일': []
         },
         '3-1': {
-            '월': [
-                { id: 41, startTime: '09:00', endTime: '11:50', subject: '고급디저트실습', location: '디저트실습실' },
-                { id: 42, startTime: '13:00', endTime: '14:50', subject: '제과제빵경영학', location: '강의실401' }
-            ],
+            '월': [],
             '화': [
-                { id: 43, startTime: '09:00', endTime: '11:50', subject: '호텔조리실습', location: '조리실습실1' },
-                { id: 44, startTime: '14:00', endTime: '15:50', subject: '와인소믈리에', location: '와인실습실' }
+                { id: 28, startTime: '09:00', endTime: '11:50', subject: '고급디저트실습', location: '디저트실습실' },
+                { id: 29, startTime: '13:00', endTime: '14:50', subject: '글로벌외식문화', location: '강의실402' }
             ],
             '수': [
-                { id: 45, startTime: '09:00', endTime: '11:50', subject: '웨딩케이크실습', location: '제과제빵실습실' },
-                { id: 46, startTime: '13:00', endTime: '14:50', subject: '글로벌외식문화', location: '강의실402' }
+                { id: 30, startTime: '10:00', endTime: '12:50', subject: '웨딩케이크실습', location: '제과제빵실습실' }
             ],
             '목': [
-                { id: 47, startTime: '09:00', endTime: '11:50', subject: '프랑스디저트', location: '디저트실습실' },
-                { id: 48, startTime: '14:00', endTime: '15:50', subject: '식품품질관리', location: '강의실401' }
+                { id: 31, startTime: '09:00', endTime: '11:50', subject: '프랑스디저트', location: '디저트실습실' },
+                { id: 32, startTime: '13:00', endTime: '14:50', subject: '식품품질관리', location: '강의실401' },
+                { id: 33, startTime: '15:00', endTime: '16:50', subject: '현장실습세미나', location: '강의실401' }
             ],
-            '금': [
-                { id: 49, startTime: '09:00', endTime: '10:50', subject: '현장실습세미나', location: '강의실401' },
-                { id: 50, startTime: '11:00', endTime: '12:50', subject: '창업실무', location: '강의실402' }
-            ],
+            '금': [],
             '토': [], '일': []
         },
         '3-2': {
             '월': [
-                { id: 51, startTime: '09:00', endTime: '11:50', subject: '슈가크래프트', location: '디저트실습실' },
-                { id: 52, startTime: '13:00', endTime: '14:50', subject: '프랜차이즈경영', location: '강의실401' }
+                { id: 34, startTime: '10:00', endTime: '12:50', subject: '슈가크래프트', location: '디저트실습실' },
+                { id: 35, startTime: '14:00', endTime: '15:50', subject: '프랜차이즈경영', location: '강의실401' }
             ],
             '화': [
-                { id: 53, startTime: '09:00', endTime: '11:50', subject: '연회조리실습', location: '조리실습실1' },
-                { id: 54, startTime: '14:00', endTime: '15:50', subject: '음료실습', location: '카페실습실' }
+                { id: 36, startTime: '09:00', endTime: '11:50', subject: '이탈리안디저트', location: '디저트실습실' }
             ],
-            '수': [
-                { id: 55, startTime: '09:00', endTime: '11:50', subject: '아트브레드실습', location: '제과제빵실습실' },
-                { id: 56, startTime: '13:00', endTime: '14:50', subject: '외식트렌드분석', location: '강의실402' }
-            ],
+            '수': [],
             '목': [
-                { id: 57, startTime: '09:00', endTime: '11:50', subject: '이탈리안디저트', location: '디저트실습실' },
-                { id: 58, startTime: '14:00', endTime: '15:50', subject: '식품안전관리', location: '강의실401' }
+                { id: 37, startTime: '09:00', endTime: '10:50', subject: '식품안전관리', location: '강의실401' },
+                { id: 38, startTime: '13:00', endTime: '15:50', subject: '캡스톤디자인Ⅰ', location: '강의실402' }
             ],
             '금': [
-                { id: 59, startTime: '09:00', endTime: '11:50', subject: '캡스톤디자인Ⅰ', location: '강의실402' }
+                { id: 39, startTime: '11:00', endTime: '12:50', subject: '창업실무', location: '강의실402' },
+                { id: 40, startTime: '14:00', endTime: '15:50', subject: '외식트렌드분석', location: '강의실402' }
             ],
             '토': [], '일': []
         },
         '4-1': {
             '월': [
-                { id: 60, startTime: '09:00', endTime: '11:50', subject: '마스터디저트실습', location: '디저트실습실' },
-                { id: 61, startTime: '13:00', endTime: '14:50', subject: '외식사업계획론', location: '강의실501' }
+                { id: 41, startTime: '09:00', endTime: '11:50', subject: '마스터디저트실습', location: '디저트실습실' },
+                { id: 42, startTime: '13:00', endTime: '14:50', subject: '외식사업계획론', location: '강의실501' }
             ],
             '화': [
-                { id: 62, startTime: '09:00', endTime: '11:50', subject: '호텔연회디저트', location: '제과제빵실습실' },
-                { id: 63, startTime: '14:00', endTime: '15:50', subject: '식품위생법규', location: '강의실502' }
+                { id: 43, startTime: '10:00', endTime: '12:50', subject: '쇼콜라티에실습', location: '디저트실습실' }
             ],
             '수': [
-                { id: 64, startTime: '09:00', endTime: '11:50', subject: '퓨전디저트개발', location: '디저트실습실' },
-                { id: 65, startTime: '13:00', endTime: '15:50', subject: '졸업프로젝트Ⅰ', location: '강의실501' }
+                { id: 44, startTime: '13:00', endTime: '15:50', subject: '퓨전디저트개발', location: '디저트실습실' },
+                { id: 45, startTime: '16:00', endTime: '17:50', subject: '식품위생법규', location: '강의실502' }
             ],
-            '목': [
-                { id: 66, startTime: '09:00', endTime: '11:50', subject: '쇼콜라티에실습', location: '디저트실습실' }
-            ],
+            '목': [],
             '금': [
-                { id: 67, startTime: '09:00', endTime: '10:50', subject: '취업세미나', location: '강의실501' },
-                { id: 68, startTime: '11:00', endTime: '13:50', subject: '캡스톤디자인Ⅱ', location: '강의실502' }
+                { id: 46, startTime: '09:00', endTime: '11:50', subject: '캡스톤디자인Ⅱ', location: '강의실502' },
+                { id: 47, startTime: '13:00', endTime: '14:50', subject: '취업세미나', location: '강의실501' }
             ],
             '토': [], '일': []
         },
         '4-2': {
             '월': [
-                { id: 69, startTime: '09:00', endTime: '11:50', subject: '졸업작품실습', location: '디저트실습실' },
-                { id: 70, startTime: '13:00', endTime: '15:50', subject: '졸업프로젝트Ⅱ', location: '강의실501' }
+                { id: 48, startTime: '09:00', endTime: '11:50', subject: '졸업작품실습', location: '디저트실습실' },
+                { id: 49, startTime: '13:00', endTime: '15:50', subject: '졸업프로젝트Ⅱ', location: '강의실501' }
             ],
-            '화': [
-                { id: 71, startTime: '09:00', endTime: '11:50', subject: '호텔디저트뷔페실습', location: '제과제빵실습실' }
-            ],
+            '화': [],
             '수': [
-                { id: 72, startTime: '09:00', endTime: '11:50', subject: '졸업작품실습', location: '디저트실습실' }
+                { id: 50, startTime: '10:00', endTime: '12:50', subject: '졸업작품실습', location: '디저트실습실' }
             ],
             '목': [
-                { id: 73, startTime: '09:00', endTime: '16:50', subject: '현장실습', location: '외부' }
+                { id: 51, startTime: '09:00', endTime: '16:50', subject: '현장실습', location: '외부' }
             ],
             '금': [
-                { id: 74, startTime: '09:00', endTime: '10:50', subject: '졸업세미나', location: '강의실501' }
+                { id: 52, startTime: '09:00', endTime: '10:50', subject: '졸업세미나', location: '강의실501' }
             ],
             '토': [], '일': []
         }
@@ -194,33 +163,22 @@ export class ScheduleModule {
         if (!this.settings.schedule) {
             this.settings.schedule = {
                 mode: 'semester',
-                currentSemester: '1-1',
+                currentSemester: '',
                 semesters: JSON.parse(JSON.stringify(ScheduleModule.DEFAULT_SEMESTERS)),
                 timetable: null,
                 appointments: []
             };
         }
-        // Migration: if semesters doesn't exist, migrate old timetable into semesters['1-1']
+        // Migration: if semesters doesn't exist, set defaults and reset currentSemester
         if (!this.settings.schedule.semesters) {
-            const defaultSemesters = JSON.parse(JSON.stringify(ScheduleModule.DEFAULT_SEMESTERS));
-            if (this.settings.schedule.timetable) {
-                // Only migrate old timetable if it actually has class data
-                // (not just empty day arrays from the old default initialization)
-                const hasClasses = Object.values(this.settings.schedule.timetable).some(
-                    dayClasses => Array.isArray(dayClasses) && dayClasses.length > 0
-                );
-                if (hasClasses) {
-                    defaultSemesters['1-1'] = this.settings.schedule.timetable;
-                }
-            }
-            this.settings.schedule.semesters = defaultSemesters;
-            this.settings.schedule.currentSemester = this.settings.schedule.currentSemester || '1-1';
+            this.settings.schedule.semesters = JSON.parse(JSON.stringify(ScheduleModule.DEFAULT_SEMESTERS));
         }
-        if (!this.settings.schedule.currentSemester) {
-            this.settings.schedule.currentSemester = '1-1';
-        }
-        // Sync timetable to current semester for backward compatibility
-        this.settings.schedule.timetable = this.settings.schedule.semesters[this.settings.schedule.currentSemester];
+        // Always reset currentSemester to '' so users must select explicitly
+        this.settings.schedule.currentSemester = '';
+        // Sync timetable to current semester (null when no semester selected)
+        this.settings.schedule.timetable = this.settings.schedule.currentSemester
+            ? this.settings.schedule.semesters[this.settings.schedule.currentSemester]
+            : null;
     }
 
     // 오늘 날짜의 요일 가져오기
@@ -447,30 +405,37 @@ export class ScheduleModule {
         this.settings.schedule.mode = this.settings.schedule.mode === 'semester' ? 'vacation' : 'semester';
         // Sync timetable when switching back to semester mode
         if (this.settings.schedule.mode === 'semester') {
-            this.settings.schedule.timetable = this.settings.schedule.semesters[this.settings.schedule.currentSemester];
+            this.settings.schedule.timetable = this.settings.schedule.currentSemester
+                ? this.settings.schedule.semesters[this.settings.schedule.currentSemester]
+                : null;
         }
         this.saveCallback();
     }
 
     // 현재 학기 시간표 반환
     getCurrentTimetable() {
-        const semester = this.settings.schedule.currentSemester || '1-1';
+        const semester = this.settings.schedule.currentSemester;
+        if (!semester) {
+            return { '월': [], '화': [], '수': [], '목': [], '금': [], '토': [], '일': [] };
+        }
         return this.settings.schedule.semesters?.[semester] ||
-               this.settings.schedule.timetable ||
                { '월': [], '화': [], '수': [], '목': [], '금': [], '토': [], '일': [] };
     }
 
     // 학기 변경
     setSemester(semesterKey) {
-        if (!this.settings.schedule.semesters?.[semesterKey]) return;
+        if (semesterKey && !this.settings.schedule.semesters?.[semesterKey]) return;
         this.settings.schedule.currentSemester = semesterKey;
-        this.settings.schedule.timetable = this.settings.schedule.semesters[semesterKey];
+        this.settings.schedule.timetable = semesterKey
+            ? this.settings.schedule.semesters[semesterKey]
+            : null;
         this.saveCallback();
     }
 
     // 학기 키를 표시 문자열로 변환 ('2-1' → '2학년 1학기')
     getSemesterLabel(key) {
-        if (!key || !key.includes('-')) return key || '';
+        if (!key) return '미선택';
+        if (!key.includes('-')) return key;
         const [year, term] = key.split('-');
         return `${year}학년 ${term}학기`;
     }
@@ -506,7 +471,9 @@ export class ScheduleModule {
                     <div class="sstssd-schedule-date">📅 오늘 ${dateStr} (${dayStr})</div>
                     <div class="sstssd-schedule-mode">
                         ${this.settings.schedule.mode === 'semester' 
-                            ? `🎓 ${this.getSemesterLabel(this.settings.schedule.currentSemester || '1-1')}`
+                            ? (this.settings.schedule.currentSemester
+                                ? `🎓 ${this.getSemesterLabel(this.settings.schedule.currentSemester)}`
+                                : '📋 학기를 선택해주세요')
                             : '🌴 방학 중'}
                         <button class="sstssd-btn sstssd-btn-sm" data-action="open-timetable">시간표⚙️</button>
                     </div>
@@ -540,6 +507,10 @@ export class ScheduleModule {
     renderTodaySchedule(scheduleItems) {
         if (this.settings.schedule.mode === 'vacation' && scheduleItems.length === 0) {
             return '<div class="sstssd-empty">🌴 방학 중 - 오늘 일정이 없습니다</div>';
+        }
+
+        if (this.settings.schedule.mode === 'semester' && !this.settings.schedule.currentSemester && scheduleItems.length === 0) {
+            return '<div class="sstssd-empty">학기를 선택하면 수업이 표시됩니다</div>';
         }
 
         if (scheduleItems.length === 0) {
@@ -669,8 +640,8 @@ export class ScheduleModule {
     // 시간표 설정 모달
     showTimetableModal() {
         const days = ['월', '화', '수', '목', '금', '토', '일'];
-        const currentSemester = this.settings.schedule.currentSemester || '1-1';
-        const timetable = this.settings.schedule.semesters[currentSemester] || this.getCurrentTimetable();
+        const currentSemester = this.settings.schedule.currentSemester || '';
+        const timetable = this.getCurrentTimetable();
         const semesterKeys = ['1-1', '1-2', '2-1', '2-2', '3-1', '3-2', '4-1', '4-2'];
         const isSemester = this.settings.schedule.mode === 'semester';
 
@@ -686,12 +657,13 @@ export class ScheduleModule {
             <div class="sstssd-timetable-semester-row" style="${isSemester ? '' : 'display:none'}">
                 <label>학기:</label>
                 <select id="sstssd-semester-select" class="sstssd-input">
+                    <option value="" ${!currentSemester ? 'selected' : ''}>— 학기 선택 —</option>
                     ${semesterKeys.map(k => `<option value="${k}" ${k === currentSemester ? 'selected' : ''}>${this.getSemesterLabel(k)}</option>`).join('')}
                 </select>
-                <button type="button" class="sstssd-btn sstssd-btn-sm" id="sstssd-reset-timetable">기본값으로 초기화</button>
+                <button type="button" class="sstssd-btn sstssd-btn-sm" id="sstssd-reset-timetable" ${!currentSemester ? 'disabled' : ''}>기본값으로 초기화</button>
             </div>
             <div class="sstssd-timetable-content">
-                ${days.map(day => `
+                ${!currentSemester ? '<div class="sstssd-empty">학기를 선택하면 시간표가 표시됩니다</div>' : days.map(day => `
                     <div class="sstssd-timetable-day" data-day="${day}">
                         <div class="sstssd-timetable-day-header">
                             <strong>${day}요일</strong>
@@ -719,7 +691,9 @@ export class ScheduleModule {
         modal.querySelector('#sstssd-mode-select').addEventListener('change', (e) => {
             this.settings.schedule.mode = e.target.value;
             if (e.target.value === 'semester') {
-                this.settings.schedule.timetable = this.settings.schedule.semesters[this.settings.schedule.currentSemester];
+                this.settings.schedule.timetable = this.settings.schedule.currentSemester
+                    ? this.settings.schedule.semesters[this.settings.schedule.currentSemester]
+                    : null;
             }
             this.saveCallback();
             modal.remove();
