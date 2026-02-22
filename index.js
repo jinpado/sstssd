@@ -884,25 +884,25 @@ function parseTagsFromRawText(rawText) {
                 
                 for (const line of itemLines) {
                     const trimmed = line.trim();
-                    const itemMatch = trimmed.match(/🔸\s*(.+?)\s*—\s*(\d+(?:\.\d+)?)\s*(\S+)\s*—\s*([\d,]+)원/);
+                    const itemMatch = trimmed.match(/🔸\s*(.+?)\s*—\s*(\d+(?:\.\d+)?)\s*(\S*)\s*—\s*([\d,]+)\s*원?/);
                     if (itemMatch) {
                         parsedItems.push({
                             name: itemMatch[1].trim(),
                             qty: parseFloat(itemMatch[2]),
-                            unit: itemMatch[3].trim(),
+                            unit: itemMatch[3].trim() || "개",
                             price: parseInt(itemMatch[4].replace(/,/g, ''))
                         });
                     } else {
                         const parts = trimmed.replace(/^🔸\s*/, '').split('—').map(p => p.trim());
                         if (parts.length >= 3) {
-                            const qtyUnitMatch = parts[1].match(/(\d+(?:\.\d+)?)\s*(\S+)/);
-                            const priceMatch = parts[2].match(/([\d,]+)원/);
+                            const qtyUnitMatch = parts[1].match(/(\d+(?:\.\d+)?)\s*(\S*)/);
+                            const priceMatch = parts[2].match(/([\d,]+)\s*원?/);
                             
                             if (qtyUnitMatch && priceMatch) {
                                 parsedItems.push({
                                     name: parts[0],
                                     qty: parseFloat(qtyUnitMatch[1]),
-                                    unit: qtyUnitMatch[2],
+                                    unit: (qtyUnitMatch[2] || '').trim() || "개",
                                     price: parseInt(priceMatch[1].replace(/,/g, ''))
                                 });
                             }
@@ -911,7 +911,7 @@ function parseTagsFromRawText(rawText) {
                 }
             }
             
-            const totalMatch = totalText.match(/([\d,]+)원/);
+            const totalMatch = totalText.match(/([\d,]+)\s*원?/);
             const totalPrice = totalMatch ? parseInt(totalMatch[1].replace(/,/g, '')) : 0;
             
             let linkedRecipe = null;
