@@ -946,7 +946,7 @@ export class BakingModule {
     async completeAllPurchases() {
         let totalPrice = 0;
         let totalItems = 0;
-        const locations = [...this.settings.baking.shoppingList];
+        const locations = (this.settings.baking.shoppingList || []).filter(list => !list.linkedRecipe);
         
         for (const list of locations) {
             const result = await this.completePurchase(list.id);
@@ -1201,7 +1201,7 @@ export class BakingModule {
     
     // 구매 리스트 렌더링
     renderShoppingList() {
-        const shoppingList = (this.settings.baking.shoppingList || []).filter(list => list.status === 'pending');
+        const shoppingList = (this.settings.baking.shoppingList || []).filter(list => list.status === 'pending' && !list.linkedRecipe);
         
         if (shoppingList.length === 0) {
             return '';
