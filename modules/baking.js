@@ -315,6 +315,10 @@ export class BakingModule {
             return { success: false, error: "레시피를 찾을 수 없습니다" };
         }
         
+        if (recipe.status === 'completed') {
+            return { success: false, error: "이미 완료된 레시피입니다" };
+        }
+        
         const multiplier = recipe.multiplier || 1;
         
         // 1. 이력 기록
@@ -489,6 +493,10 @@ export class BakingModule {
         const recipe = this.settings.baking.recipes.find(r => r.id === recipeId);
         if (!recipe || !recipe.steps || !recipe.steps[stepIndex]) {
             return { success: false, error: "단계를 찾을 수 없습니다" };
+        }
+        
+        if (recipe.status === 'completed') {
+            return { success: false, error: "이미 완료된 레시피입니다" };
         }
         
         const step = recipe.steps[stepIndex];
@@ -691,16 +699,33 @@ export class BakingModule {
             
             // Call completeStep to finalize (will deduct ingredients, add product, reset to pending)
             const lastStepIndex = recipe.steps ? recipe.steps.length - 1 : -1;
+            const completedMultiplier = recipe.multiplier || 1;
             if (lastStepIndex >= 0) {
                 this.completeStep(recipe.id, lastStepIndex);
             } else {
                 // No steps defined, manually complete
-                const multiplier = recipe.multiplier || 1;
                 recipe.status = 'completed';
                 recipe.completedAt = this.formatDate(this.getRpDate());
                 // 완성품 추가 (개인 보유)
-                this.addProduct(recipe.name, recipe.yieldQty * multiplier);
+                this.addProduct(recipe.name, recipe.yieldQty * completedMultiplier);
                 this.saveCallback();
+            }
+
+            // ========== QR 변수 자동 정리 ==========
+            try {
+                const context = window.getContext?.() || (typeof SillyTavern !== 'undefined' ? SillyTavern.getContext() : null);
+                if (context?.executeSlashCommandsWithOptions) {
+                    context.executeSlashCommandsWithOptions('/setvar key=bake_active "false"');
+                    context.executeSlashCommandsWithOptions('/setvar key=bake_data ""');
+                    console.log('SSTSSD: QR variables cleared after baking completion');
+                }
+            } catch (error) {
+                console.warn('SSTSSD: Failed to clear QR variables after completion', error);
+            }
+
+            // ========== 인스타 업로드 프롬프트 ==========
+            if (this.instagramModule) {
+                this.showInstagramPostOption(recipe.name, recipe.yieldQty * completedMultiplier, recipe.yieldUnit);
             }
         } else {
             this.saveCallback();
