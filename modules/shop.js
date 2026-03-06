@@ -377,8 +377,20 @@ export class ShopModule {
             .sort((a, b) => b.date.localeCompare(a.date));
     }
     
-    // Get sale inventory (always empty - inventory module removed)
+    // Get sale inventory from baking products transferred to shop
     getSaleInventory() {
+        if (this.settings.baking && this.settings.baking.products) {
+            return this.settings.baking.products
+                .filter(p => p.shopQuantity > 0)
+                .map(p => ({
+                    id: p.id,
+                    name: p.name,
+                    qty: p.shopQuantity,
+                    unit: '개',
+                    price: p.unitPrice || 0,
+                    lowStock: p.shopQuantity <= this.LOW_STOCK_THRESHOLD
+                }));
+        }
         return [];
     }
     
@@ -550,15 +562,20 @@ export class ShopModule {
                     <div class="sstssd-sub-content ${subState.saleInventory ? 'sstssd-sub-open' : ''}">
                         ${saleInventory.length > 0 ? `
                             ${saleInventory.map(item => `
-                                <div class="sstssd-sale-inventory-item ${item.lowStock ? 'sstssd-low-stock' : ''}">
-                                    <span class="sstssd-sale-inventory-name">${this.escapeHtml(item.name)}</span>
-                                    <span class="sstssd-sale-inventory-qty">${item.qty}${item.unit}</span>
-                                    ${item.lowStock ? '<span class="sstssd-warning-badge">⚠️ 품절임박</span>' : ''}
-                                    ${item.qty === 0 ? '<span class="sstssd-out-badge">품절</span>' : ''}
+                                <div class="sstssd-sale-inventory-item ${item.lowStock ? 'sstssd-low-stock' : ''}" style="display: flex; justify-content: space-between; align-items: center; padding: 8px; border-bottom: 1px solid #eee;">
+                                    <div class="sstssd-sale-inventory-info">
+                                        <span class="sstssd-sale-inventory-name" style="font-weight: bold;">${this.escapeHtml(item.name)}</span>
+                                        <span class="sstssd-sale-inventory-qty" style="color: #4CAF50; margin-left: 8px;">${item.qty}${item.unit}</span>
+                                        <span class="sstssd-sale-inventory-price" style="color: #666; font-size: 0.9em; margin-left: 8px;">(@${this.formatCurrency(item.price)})</span>
+                                        ${item.lowStock ? '<span class="sstssd-warning-badge" style="margin-left: 5px; color: #f59e0b; font-size: 0.8em;">⚠️ 품절임박</span>' : ''}
+                                    </div>
+                                    <div class="sstssd-sale-inventory-actions">
+                                        <button class="sstssd-btn sstssd-btn-sm sstssd-btn-success" data-action="manual-sell" data-id="${item.id}" data-name="${this.escapeHtml(item.name)}" data-price="${parseInt(item.price) || 0}" data-max="${parseInt(item.qty) || 0}">💰 수동 판매</button>
+                                    </div>
                                 </div>
                             `).join('')}
                         ` : `
-                            <div class="sstssd-empty">판매용 재고가 없습니다</div>
+                            <div class="sstssd-empty">판매용 재고가 없습니다 (베이킹에서 진열해주세요)</div>
                         `}
                     </div>
                 </div>
@@ -863,6 +880,19 @@ export class ShopModule {
                 } else {
                     alert(result.error);
                 }
+            });
+        });
+        
+        // Manual sell from inventory
+        const manualSellBtns = container.querySelectorAll('[data-action="manual-sell"]');
+        manualSellBtns.forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const id = parseInt(btn.dataset.id);
+                const name = btn.dataset.name;
+                const price = parseInt(btn.dataset.price);
+                const max = parseInt(btn.dataset.max);
+                this.showManualSaleModal(id, name, price, max, container);
             });
         });
     }
@@ -1432,5 +1462,86 @@ export class ShopModule {
         
         const confirmBtn = modal.querySelector('#sstssd-settlement-confirm');
         confirmBtn.addEventListener('click', () => modal.remove());
+    }
+    
+    showManualSaleModal(productId, menuName, unitPrice, maxQty, container) {
+        const modal = document.createElement('div');
+        modal.className = 'sstssd-modal';
+        const defaultOperator = this.getDefaultOperator();
+        
+        modal.innerHTML = `
+            <div class="sstssd-modal-overlay"></div>
+            <div class="sstssd-modal-content">
+                <h3>💰 수동 판매 등록</h3>
+                <form id="sstssd-manual-sale-form">
+                    <div class="sstssd-form-group">
+                        <label>메뉴명</label>
+                        <input type="text" class="sstssd-input" value="${menuName}" disabled>
+                    </div>
+                    <div class="sstssd-form-group">
+                        <label>판매 수량 (최대 ${maxQty}개)</label>
+                        <input type="number" name="quantity" class="sstssd-input" value="1" min="1" max="${maxQty}" required>
+                    </div>
+                    <div class="sstssd-form-group">
+                        <label>단가 (원)</label>
+                        <input type="number" name="unitPrice" class="sstssd-input" value="${unitPrice}" required>
+                    </div>
+                    <div class="sstssd-form-group">
+                        <label>판매자 (알바/사장)</label>
+                        <input type="text" name="operator" class="sstssd-input" value="${defaultOperator}" required>
+                    </div>
+                    <div class="sstssd-form-actions">
+                        <button type="button" class="sstssd-btn sstssd-btn-cancel">취소</button>
+                        <button type="submit" class="sstssd-btn sstssd-btn-primary">판매 처리</button>
+                    </div>
+                </form>
+            </div>
+        `;
+        document.body.appendChild(modal);
+        
+        const form = modal.querySelector('#sstssd-manual-sale-form');
+        const cancelBtn = modal.querySelector('.sstssd-btn-cancel');
+        const overlay = modal.querySelector('.sstssd-modal-overlay');
+        
+        form.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const formData = new FormData(form);
+            const qty = parseInt(formData.get('quantity'));
+            const price = parseInt(formData.get('unitPrice'));
+            const operator = formData.get('operator');
+            
+            if (qty > maxQty) {
+                alert(`재고(${maxQty}개)가 부족합니다.`);
+                return;
+            }
+            
+            // 1. 베이킹 재고 차감
+            const product = this.settings.baking.products.find(p => p.id === productId);
+            if (!product || product.shopQuantity < qty) {
+                alert(`재고(${product ? product.shopQuantity : 0}개)가 부족합니다.`);
+                return;
+            }
+            product.shopQuantity -= qty;
+            
+            // 2. 매출 등록 (잔고 증가 포함)
+            this.addSale({
+                menuName: menuName,
+                quantity: qty,
+                unitPrice: price,
+                operator: operator
+            });
+            
+            modal.remove();
+            this.render(container);
+            
+            // 잔고 모듈 강제 리렌더링 (매출이 즉각 반영되도록)
+            const balanceContainer = document.querySelector('.sstssd-module[data-module="balance"]');
+            if (balanceContainer && this.balanceModule) {
+                this.balanceModule.render(balanceContainer);
+            }
+        });
+        
+        cancelBtn.addEventListener('click', () => modal.remove());
+        overlay.addEventListener('click', () => modal.remove());
     }
 }
