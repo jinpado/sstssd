@@ -1379,15 +1379,31 @@ function buildDashboardPrompt() {
                     }
                 }
             }
-        }
-        
-        prompt += `\nWhen customer buys, use: <SALE>품명|수량|단가</SALE>\n`;
-        
-        // 가게 진열 완성품 정보
-        if (chatData.baking?.products) {
-            const shopProducts = chatData.baking.products.filter(p => p.shopQuantity > 0);
+
+            // 진열품 정보 (가격 포함) 및 자연스러운 손님 방문 힌트
+            const shopProducts = chatData.baking?.products?.filter(p => p.shopQuantity > 0) || [];
             if (shopProducts.length > 0) {
-                prompt += `가게 진열품: ${shopProducts.map(p => `${p.name}(${p.shopQuantity}개)`).join(', ')}\n`;
+                prompt += `\n가게 진열품:\n`;
+                shopProducts.forEach(p => {
+                    const priceStr = p.unitPrice > 0 ? `, ${p.unitPrice.toLocaleString()}원` : '';
+                    prompt += `- ${p.name}: ${p.shopQuantity}개${priceStr}\n`;
+                });
+
+                // 시간대 기반 방문 빈도 힌트
+                const rpTime = chatData.rpTime || '';
+                if (rpTime) {
+                    const hour = parseInt(rpTime.split(':')[0], 10) || 0;
+                    let timeLabel = '';
+                    if (hour >= 7 && hour < 10) timeLabel = '아침 시간대';
+                    else if (hour >= 10 && hour < 14) timeLabel = '점심 시간대 (방문 빈도 높음)';
+                    else if (hour >= 14 && hour < 18) timeLabel = '오후 시간대';
+                    else if (hour >= 18 && hour < 21) timeLabel = '저녁 시간대';
+                    else timeLabel = '한산한 시간대';
+                    prompt += `현재: ${timeLabel}\n`;
+                }
+
+                prompt += `가게가 열려 있으니 자연스럽게 가끔 손님이 방문하는 장면을 묘사해도 좋습니다 (매 턴 강제 아님).\n`;
+                prompt += `손님 구매 시: <SALE>품명|수량|단가</SALE>\n`;
             }
         }
     }
